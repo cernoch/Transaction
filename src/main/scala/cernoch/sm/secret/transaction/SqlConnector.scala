@@ -17,7 +17,7 @@ class SqlConnector(
 
   extends MySQLAdaptor(host,port,user,pass,dtbs,"") {
 
-  override def escTab(s:String) = quote(s)
+  override def escapeTable(s:String) = quote(s)
   override def escapeColumn(s: String) = quote(s)
 
 }

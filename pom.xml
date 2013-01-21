@@ -44,34 +44,14 @@
       <artifactId>scala-library</artifactId>
       <version>${scala.version}</version>
     </dependency>
-    <dependency>
-      <groupId>cernoch.scalogic</groupId>
-      <artifactId>ScaLogic</artifactId>
-      <version>0.5</version>
-    </dependency>
-    <dependency>
-      <groupId>cernoch.scalogic</groupId>
-      <artifactId>SqlStore</artifactId>
-      <version>0.6</version>
-    </dependency>
-    <dependency>
-      <groupId>cernoch.sm.core</groupId>
-      <artifactId>StatMiner</artifactId>
-      <version>0.1</version>
-    </dependency>
+    <dependency><groupId>cernoch.scalogic</groupId><artifactId>ScaLogic</artifactId><version>0.6</version></dependency>
+    <dependency><groupId>cernoch.scalogic</groupId><artifactId>SqlStore</artifactId><version>0.6</version></dependency>
+    <dependency><groupId>cernoch.sm.core</groupId><artifactId>StatMiner</artifactId><version>0.6</version></dependency>
     <!-- Test -->
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.8.1</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.specs2</groupId> 
-      <artifactId>specs2_${scala.version}</artifactId> 
-      <version>1.12.1</version> 
-      <scope>test</scope>
-    </dependency>
+    <dependency><groupId>junit</groupId><artifactId>junit</artifactId>
+        <version>4.8.1</version><scope>test</scope></dependency>
+    <dependency><groupId>org.specs2</groupId><artifactId>specs2_${scala.version}</artifactId>
+        <version>1.12.1</version><scope>test</scope></dependency>
   </dependencies>
 
   <build>
@@ -100,11 +80,6 @@
         </executions>
         <configuration>
           <launchers>
-            <launcher>
-              <id>import</id>
-              <mainClass>cernoch.sm.secret.transaction.BumpHunting</mainClass>
-              <jvmArgs><jvmArg>-Xmx7G</jvmArg></jvmArgs>
-            </launcher>
             <launcher>
               <id>run</id>
               <mainClass>cernoch.sm.secret.transaction.BumpHunting</mainClass>

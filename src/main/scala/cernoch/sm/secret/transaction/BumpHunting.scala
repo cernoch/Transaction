@@ -1,8 +1,12 @@
 package cernoch.sm.secret.transaction
 
-import cernoch.sm.space.HistBeam
-import cernoch.scalogic._
-import tools.Labeler
+import cernoch._
+import scalistics.Hist
+import scalogic._
+import sm.algebra.{StdDev, Variance, Aggregate}
+import sm.space._
+import bumphunt.BeamHistSearch
+import sm.sql.{LoggingInterceptor, SqlStorage}
 
 /**
  *
@@ -93,9 +97,7 @@ class BumpHunting {
 
 object BumpHunting {
 
-  def main(args: Array[String])
-  : Unit
-  = {
+  def printSchema {
     val a = new BumpHunting
     
     println(a.schema.createDecl(null))
@@ -104,12 +106,85 @@ object BumpHunting {
       .filter{_.isKey}
       .map(a.schema.createDecl)
       .foreach(println)
-
-    /*
-    (a.schema.starter :: a.schema.others)
-      .foreach(x => {
-        println(x.modeIn + " " + x)
-      })
-    */
   }
+
+  def main(args: Array[String])
+  : Unit
+  = {
+    val bh = new BumpHunting
+    import bh.schema._
+
+    val sc = new SqlConnector(user="sm",pass="sm",dtbs="sm")
+    //      with LoggingInterceptor
+
+    val ss = new SqlStorage(sc, List(BLC(starter))).open
+    val qs = new QueriableAdaptor(ss)
+
+    val hs = new BeamHistSearch((starter :: others) toSet) {
+
+      maxConsNonImp = 1
+
+      override def aggregators = {
+        val doubleAggregators
+        = new Aggregate[Double]()
+        import doubleAggregators._
+
+        List(min, max, sum, mean,
+          median, new StdDev())
+      }
+
+      def execQuery
+        (state: Horn[HeadAtom, Set[Atom[FFT]]])
+      = { if (state.head == null)
+        throw new TooNew("No query-var in the clause.")
+        else qs(state)
+      }
+
+      override def stateResult
+        (state: Horn[HeadAtom, Set[Atom[FFT]]])
+      = try {
+        //println()
+        //println(state)
+
+        val out = super.stateResult(state)
+        val (n,a,h,s) = out
+
+        //println("\t" + n + "\t" + a + "\t" + s + "\t")
+        //println("\t" + h)
+        out
+
+      } catch {
+        case e => {
+          //println("\t" + e.getMessage())
+          throw e
+        }
+      }
+
+      override def bestUpdated
+        (state: Horn[HeadAtom, Set[Atom[FFT]]],
+         result: (Int,String,Hist[Double],Double))
+      = {
+        val (bins, func, hist, score) = result
+
+        println("===== NEW OPTIMUM =====")
+        println("Horn: " + state)
+        println("Bins: " + bins)
+        println("Func: " + func)
+        println("Hist: " + hist)
+        println("mALP: " + score)
+      }
+
+    }
+
+    val out = hs.start
+
+    for ((clause, (bins, func, hist, score)) <- out) {
+      println("Bins: " + bins)
+      println("Func: " + func)
+      println("Horn: " + clause)
+      println("Hist: " + hist)
+    }
+  }
+
+
 }
