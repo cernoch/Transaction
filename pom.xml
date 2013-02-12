@@ -44,9 +44,10 @@
       <artifactId>scala-library</artifactId>
       <version>${scala.version}</version>
     </dependency>
-    <dependency><groupId>cernoch.scalogic</groupId><artifactId>ScaLogic</artifactId><version>0.6</version></dependency>
-    <dependency><groupId>cernoch.scalogic</groupId><artifactId>SqlStore</artifactId><version>0.6</version></dependency>
-    <dependency><groupId>cernoch.sm.core</groupId><artifactId>StatMiner</artifactId><version>0.6</version></dependency>
+    <dependency><groupId>cernoch.scalogic</groupId><artifactId>ScaLogic</artifactId><version>0.8</version></dependency>
+    <dependency><groupId>cernoch.scalogic</groupId><artifactId>SqlStore</artifactId><version>0.8</version></dependency>
+    <dependency><groupId>cernoch.sm.core</groupId><artifactId>StatMiner</artifactId><version>0.8</version></dependency>
+    <dependency><groupId>nz.ac.waikato.cms.weka</groupId><artifactId>weka-stable</artifactId><version>3.6.6</version></dependency>
     <!-- Test -->
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId>
         <version>4.8.1</version><scope>test</scope></dependency>
@@ -94,6 +95,7 @@
         <version>2.6</version>
         <configuration>
           <useFile>false</useFile>
+          <forkMode>never</forkMode>
           <disableXmlReport>true</disableXmlReport>
           <!-- If you have classpath issue like NoDefClassError,... -->
           <!-- useManifestOnlyJar>false</useManifestOnlyJar -->
