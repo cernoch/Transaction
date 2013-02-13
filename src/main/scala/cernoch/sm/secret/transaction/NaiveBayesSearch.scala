@@ -4,6 +4,7 @@ import cernoch._
 import scalogic._
 import scalistics._
 import sm.algebra.aggregators._
+import sm.space.{TooOld, TooNew}
 import sm.sql.QueryExecutor
 import tools.Labeler
 import weka.core.Instances
@@ -18,22 +19,40 @@ class NaiveBayesSearch
   (st: Starter,
    modes: Set[Btom[FFT]],
    storage: QueryExecutor,
-   vychozi: Instances)
+   vychozi: WekaBridge[Val[_]])
   extends ClauseBeam[(Var,String,Double)](st, modes) {
 
   def stateResult
   (state: Horn[HeadAtom, Set[Atom[FFT]]])
   = {
+    var bestScore = 0.0
+    var bestState: Option[(Var,String,Double)] = None
 
-    println("QUERY: " + state)
-    val noveHodnoty =
-      for ( ((war,agg), map) <- execQuery(state) )
-        yield {
-        println("RESULT("+war+","+agg+"): " + map)
-        (state, (war, agg, vychozi.enrich(war.dom, map).classify))
+    val varNames = Labeler.alphabet[Var]
+    println("----- Executing a new query -----")
+    println(state.toShort(varNames))
+
+    execQuery(state).par.foreach{
+      case ((war,agg), exampleMap) => {
+        val newAttr = Var(DecDom(war.dom.name))
+        val enriched = vychozi.enrich(newAttr, exampleMap)
+        val score = WekaBridge.classify(enriched)
+        state.synchronized {
+          if (bestScore < score) {
+            bestScore = score
+            bestState = Some((war, agg, score))
+          }
         }
+      }
+    }
 
-    sortByResults(Array(), noveHodnoty).head._2
+    if (bestState.isEmpty) throw new
+        TooNew("No aggregable variable in the query.")
+
+    println("Best accuracy " + bestState.get._3 +
+      "% achieved using " + bestState.get._2.toUpperCase +
+      " on variable " + bestState.get._1.toString(varNames) + ".")
+    bestState.get
   }
 
   def sortByResults
@@ -42,117 +61,85 @@ class NaiveBayesSearch
   = (old ++ neu) sortBy {- _._2._3}
 
 
+
   /**
    * Execute the query.
    */
   def execQuery(state: Horn[HeadAtom, Set[Atom[FFT]]]) = {
-
     // Create a triplet of aggregators for each example
-    val collector = new Labeler(f = (v: Val[_]) => {
-      val aggCat = state.head.histVars.view
-        .filter{_.dom.isInstanceOf[CatDom]}
-        .map{_ -> mkCatAggss}
-        .toMap
-
-      val aggNum = state.head.histVars.view
-        .filter{_.dom.isInstanceOf[NumDom]}
-        .map{_ -> mkNumAggss}
-        .toMap
-
-      val aggDec = state.head.histVars.view
-        .filter{_.dom.isInstanceOf[DecDom]}
-        .map{_ -> mkDecAggss}
-        .toMap
-
-      (aggCat, aggNum, aggDec)
+    val collector = new Labeler((v: Val[_]) => {
+      state.head.histVars.view
+        .filterNot{_.dom.isKey}
+        .map(war => { war -> (war.dom match {
+          case CatDom(_,_,_) => new AggCat()
+          case NumDom(_,_) => new AggNum()
+          case DecDom(_) => new AggDec()
+        })}).toList
     })
 
-    // Execute query and fill the aggregators
-    for (mapa <- storage.query(state);
-         (aggCat, aggNum, aggDec)
-          = collector(mapa(state.head.exVar))) {
+    // Start printing the status every 30s
+    var results = BigInt(0)
+    val started = System.currentTimeMillis()
 
-      for ((war,aggs) <- aggCat; wal = mapa(war)
-           if wal != null; agg <- aggs)
-        agg += wal.asInstanceOf[Cat].get
-
-      for ((war,aggs) <- aggNum; wal = mapa(war)
-           if wal != null; agg <- aggs)
-        agg += wal.asInstanceOf[Num].get
-
-      for ((war,aggs) <- aggDec; wal = mapa(war)
-           if wal != null; agg <- aggs)
-        agg += wal.asInstanceOf[Dec].get
+    val writer = new Thread() {
+      override def run() {
+        try {
+          while (true) {
+            Thread.sleep(10000)
+            print("... in " +
+              (System.currentTimeMillis() - started) / 1000 +
+              "s done "+results + " results using " + Tools.usedMem +
+              "MB mem")
+          }
+        } catch {
+          case _:InterruptedException =>
+        }
+      }
     }
+    writer.start()
+
+    // Execute query and fill the aggregators
+    storage.query(state, resMap => {
+
+      if (results == 0) {
+        val delta = (System.currentTimeMillis().toDouble - started) / 1000
+        print("... query evaluated in " + delta + "s")
+      }
+
+      for (
+        (war, agg) <- collector(resMap(state.head.exVar));
+        wal = resMap(war) if wal.get != null
+      ) agg match {
+        case a:AggCat => a += wal.asInstanceOf[Cat].get
+        case a:AggDec => a += wal.asInstanceOf[Dec].get
+        case a:AggNum => a += wal.asInstanceOf[Num].get
+      }
+      results = results + 1
+    })
+    writer.interrupt()
+    println("... total number of " + results + " records for " +
+      collector.map.size + " examples aggregated in " +
+      (System.currentTimeMillis().toDouble -
+        started.toDouble) / 1000 + "s.")
+
+    if (results == 0) throw new
+      TooOld("Query did not produce a single result")
+
+    /*
+    collector.map.foreach{case (k,v) => {
+      println(" ===== " + k + " ===== ")
+      v.foreach{case (v,f) => println(v + " => " + f())}
+    }}
+    */
 
     val retVal = for (
       (example,varMapsInTuple) <- collector.map.toList;
-      (ac,an,ad) = varMapsInTuple;
-      varMapFromList <- Iterable(ac,an,ad);
-      (war, aggregators) <- varMapFromList;
-      aggregator <- aggregators;
-      aggValue = aggregator()
-      if aggValue.isDefined
-    ) yield {
-      val exampleId = example.asInstanceOf[Num].get.toInt
-      ((war, aggregator.name), (exampleId, aggValue.get.toDouble))
-    }
+      (war, aggregators) <- varMapsInTuple;
+      (aggName, value) <- aggregators()
+    ) yield ((war, aggName), (example, value))
 
     retVal.groupBy{_._1}.mapValues{_.map{_._2}.toMap}
   }
 
   private implicit def bigInt2Dec(i: BigInt) = BigDecimal(i)
-
-  private def mkDecAggss
-  : List[Aggregator[BigDecimal,BigDecimal]]
-  = List(
-    MIN.forBigDecimal,
-    MAX.forBigDecimal,
-    SUM.forBigDecimal,
-    MEAN.forBigDecimal,
-    MEDIAN.forBigDecimal,
-    VARIANCE.forBigDecimal
-  )
-
-
-  private def mkNumAggss
-  : List[Aggregator[BigInt,BigInt]]
-  = List(
-    MIN.forBigInt,
-    MAX.forBigInt,
-    SUM.forBigInt,
-    MODE.forBigInt,
-    MEDIAN.forBigInt
-  )
-
-
-
-  private def mkCatAggss
-  : List[Aggregator[Any,BigInt]]
-  = List(COUNT.usingBigInt)
-
-
-
-  /**
-   * Returns a percentage from a nominator and denominator
-   */
-  private def percentage
-  (nom: Int, denom: Int)
-  = denom match {
-    case 0 => "?%"
-    case _ => (nom * 100 / denom) + "%"
-  }
-
-  /**
-   * Given the number of examples
-   * with and without a value,
-   * do we have enough data?
-   */
-  def hasEnough
-  (okay:Int, total:Int)
-  = (total * 9 / 10) < okay
-
-  private def byBestResult
-  = (Ordering by {x: (Int,String,Hist[Double],Double) => x._4})
-
 }

@@ -2,6 +2,7 @@ package cernoch.sm.secret.transaction
 
 import cernoch._
 import scalogic._
+import numeric.LessOrEq
 import sm.space.{Instant, BeamSearch, AddAtom, Generator}
 import sm.space.Generator.instantiateHornBody
 
@@ -23,7 +24,17 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
    */
   protected def addNewAtoms
   (orig: Horn[HeadAtom,Set[Atom[FFT]]])
-  = Generator.addAtomToHorn(mode)(orig)
+  = Generator.addAtomToHorn(mode)(orig).map(a => {
+    new AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]() {
+      def old = a.old
+      def added = a.added
+      def neu = new Horn(a.neu.head,
+        a.neu.bodyAtoms + new LessOrEq[FFT](
+          a.added.args.find(_.dom == Domains.dt).get,
+          a.old.head.baseDate
+        ) )
+    }
+  })
 
   protected def supported(v: Var)
   = !v.dom.isKey && WekaBridge.supported(v.dom)
@@ -35,7 +46,7 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
   protected def replaceHead
   (addRefments: Iterable[AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]])
   = for (r <- addRefments)
-  yield
+  yield {
     new AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]() {
       def added = r.added
       def old = r.old
@@ -44,9 +55,14 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
           .filter{supported} // ... that satisify the user-specified criteria
           .filter{_.dom != r.old.head.exVar.dom} // ... not= example number (once is enough)
           .filter{_.dom != r.old.head.clVar.dom} // ... not= the class (classification would be trivial)
+          .filter{v => r match {
+            case i:Instant[_] => v != i.oldVar
+            case _ => true
+          }} // ... if the variable was instantiated, do not add it!
         ),
         r.neu.bodyAtoms )
     }
+  }
 
   /**
    * Instantiates variables in the newly added atom
@@ -75,8 +91,6 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
   (clause: Horn[HeadAtom, Set[Atom[FFT]]])
   = {
     val expand = addNewAtoms(clause)
-    val insted = instantiate(expand)
-
-    (replaceHead(expand) ++ replaceHead(insted)).map{_.neu}
+    replaceHead(expand).map{_.neu}.toList // ++ replaceHead(instantiate(expand)).map{_.neu}
   }
 }

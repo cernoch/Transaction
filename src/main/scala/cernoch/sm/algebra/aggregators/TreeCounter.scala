@@ -3,7 +3,7 @@ package cernoch.sm.algebra.aggregators
 import collection.immutable.TreeMap
 
 abstract class TreeCounter[T,N]
-  (protected var map: TreeMap[T,N])
+  (var map: TreeMap[T,N])
   (implicit num: Numeric[N])
 extends Symmetric[T] {
   import TreeCounter._

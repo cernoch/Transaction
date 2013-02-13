@@ -10,9 +10,11 @@ object Domains {
   // buf domains with values
   private val buf = collection.mutable.ListBuffer[Domain[_]]()
 
+  //val ex = NumDom("transactionId", true)
   val ex = NumDom("id", true)
   val cl = CatDom("fraudCode",
-    allowed = Set("00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "51"))
+    allowed = Set("00", "01", "02", "03",
+      "04", "05", "06", "07", "08", "09", "51"))
 
   val acceptorCountryCode = CatDom("acceptorCountryCode",
     allowed = Set("AUT", "FRA", "GBR", "GER", "ITA", "ROM", "RUS", "SPA", "USA"))
@@ -83,11 +85,8 @@ object Domains {
     allowed = Set("EUR", "RON", "USD"))
   buf += transactionCurrencyCode
 
-  val transactionDateTime = DecDom("transactionDateTime")
-  buf += transactionDateTime
-
-  val transactionId = NumDom("transactionId", true)
-  buf += transactionId
+  val dt = DecDom("transactionDateTime")
+  buf += dt
 
   val transactionType = CatDom("transactionType")
   buf += transactionType

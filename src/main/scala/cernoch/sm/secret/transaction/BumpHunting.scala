@@ -17,14 +17,15 @@ object BumpHunting {
   : Unit
   = {
 
-    val sc = new Connect() with QueryLogger
+    val sc = new Connect().toPostgres
     val ss = new SqlStorage(sc, List(schema.starter)).open
     val st = new Starter(schema.starter)
 
     val bl = WekaBridge(st,ss)
-    println(bl.classify)
+    println("Baseline accuracy = " +
+      math.round(WekaBridge.classify(bl)) + "%")
 
-    val ch = (schema.starter :: schema.others).toSet[Btom[FFT]]
+    val ch = schema.others.toSet[Btom[FFT]]
     val nb = new NaiveBayesSearch(st,ch,ss,bl)
 
     println(nb.start)

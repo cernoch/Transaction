@@ -9,10 +9,11 @@ class Connect(
     user: String = "sm",
     pass: String = "sm",
     dtbs: String = "sm",
-    host: String = "localhost",
-    port: Int = 3306)
-  extends MySQLAdaptor(
-    host,port,user,pass,dtbs,"") {
+    host: String = "localhost") {
 
+  def toMySQL = new MySQLAdaptor(
+    host = host, user = user, pass = pass, dtbs = dtbs)
 
+  def toPostgres = new PostgresAdaptor(
+    host = host, user = user, pass = pass, dtbs = dtbs)
 }

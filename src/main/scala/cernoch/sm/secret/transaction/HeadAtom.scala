@@ -3,7 +3,9 @@ package cernoch.sm.secret.transaction
 import cernoch.scalogic.{Atom, Var}
 
 class HeadAtom(
-    val exVar: Var, val clVar: Var,
+    val exVar: Var,
+    val clVar: Var,
+    val baseDate: Var,
     val histVars: List[Var])
   extends Atom[Var](
     "head",
@@ -13,6 +15,7 @@ class HeadAtom(
   def addOutVars
   (i: Iterable[Var])
   = new HeadAtom(
-    exVar, clVar, histVars ++ i
+    exVar, clVar, baseDate,
+    histVars ++ i
   )
 }

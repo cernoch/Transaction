@@ -8,11 +8,9 @@ import tools.StringUtils._
  */
 class Schema {
 
-  private def allDomains = Domains.all
-
   private def declaration(inDomain:Domain[_])
   = Schema.tableName + mkStringIfNonEmpty(
-      allDomains.map(d =>
+      Domains.all.map(d =>
         (d == inDomain match {
           case true => "+"
           case false => "-"
@@ -26,7 +24,9 @@ class Schema {
   )
 
   val starter = createMode()
-  val others = Domains.all map createMode
+  val others = Domains.all
+    .filter(!_.isInstanceOf[DecDom])
+    .map(createMode)
 }
 
 
