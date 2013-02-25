@@ -15,50 +15,63 @@ import WekaBridge._
  *
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
+
+case class Out(val war: Var, val agg: String,
+  val dat: WekaBridge[Val[_]], val acc: Double) {}
+
+
 class NaiveBayesSearch
   (st: Starter,
    modes: Set[Btom[FFT]],
    storage: QueryExecutor,
    vychozi: WekaBridge[Val[_]])
-  extends ClauseBeam[(Var,String,Double)](st, modes) {
+  extends ClauseBeam[Out](st, modes) {
+
+  Class.forName("org.postgresql.util.PSQLException")
 
   def stateResult
   (state: Horn[HeadAtom, Set[Atom[FFT]]])
   = {
-    var bestScore = 0.0
-    var bestState: Option[(Var,String,Double)] = None
+    var best: Out = null
 
     val varNames = Labeler.alphabet[Var]
     println("----- Executing a new query -----")
     println(state.toShort(varNames))
 
-    execQuery(state).par.foreach{
-      case ((war,agg), exampleMap) => {
-        val newAttr = Var(DecDom(war.dom.name))
-        val enriched = vychozi.enrich(newAttr, exampleMap)
-        val score = WekaBridge.classify(enriched)
-        state.synchronized {
-          if (bestScore < score) {
-            bestScore = score
-            bestState = Some((war, agg, score))
+    // Prepare for OutOfMemoryException
+    val tooNew = new TooNew(
+      "Query produces too much results." +
+        " Must be specialized")
+
+    try {
+      execQuery(state).par.foreach {
+        case ((war,agg), exampleMap) => {
+          val newAttr = Var(DecDom(war.dom.name))
+          val enriched = vychozi.enrich(newAttr, exampleMap)
+          val acc = WekaBridge.classify(enriched)
+          state.synchronized {
+            if (best == null || best.acc < acc)
+              best = new Out(war, agg, enriched, acc)
           }
         }
       }
+    } catch {
+      case _:OutOfMemoryError => throw tooNew
     }
 
-    if (bestState.isEmpty) throw new
+    if (best == null) throw new
         TooNew("No aggregable variable in the query.")
 
-    println("Best accuracy " + bestState.get._3 +
-      "% achieved using " + bestState.get._2.toUpperCase +
-      " on variable " + bestState.get._1.toString(varNames) + ".")
-    bestState.get
+    println("Best accuracy " + best.acc +
+      "% achieved using " + best.agg +
+      " on variable " + best.war.toString(varNames) + ".")
+    best
   }
 
-  def sortByResults
-  (old:    Array[(Horn[HeadAtom, Set[Atom[FFT]]], (Var,String,Double))],
-   neu: Iterable[(Horn[HeadAtom, Set[Atom[FFT]]], (Var,String,Double))])
-  = (old ++ neu) sortBy {- _._2._3}
+  def onlySort
+  ( old: Iterable[(Horn[HeadAtom, Set[Atom[FFT]]], Out)],
+    neu: Iterable[(Horn[HeadAtom, Set[Atom[FFT]]], Out)])
+  = (old.view ++ neu).toArray.sortBy{- _._2.acc}
 
 
 
@@ -66,79 +79,79 @@ class NaiveBayesSearch
    * Execute the query.
    */
   def execQuery(state: Horn[HeadAtom, Set[Atom[FFT]]]) = {
-    // Create a triplet of aggregators for each example
-    val collector = new Labeler((v: Val[_]) => {
-      state.head.histVars.view
-        .filterNot{_.dom.isKey}
-        .map(war => { war -> (war.dom match {
-          case CatDom(_,_,_) => new AggCat()
-          case NumDom(_,_) => new AggNum()
-          case DecDom(_) => new AggDec()
-        })}).toList
-    })
 
-    // Start printing the status every 30s
+    // Start printing the status every 10s
     var results = BigInt(0)
     val started = System.currentTimeMillis()
-
-    val writer = new Thread() {
+    val writer = new Thread("StatusWriter") {
       override def run() {
         try {
           while (true) {
             Thread.sleep(10000)
             print("... in " +
               (System.currentTimeMillis() - started) / 1000 +
-              "s done "+results + " results using " + Tools.usedMem +
+              "s "+results + " results done using " + Tools.usedMem +
               "MB mem")
           }
         } catch {
+          case _:OutOfMemoryError =>
           case _:InterruptedException =>
         }
       }
     }
-    writer.start()
 
-    // Execute query and fill the aggregators
-    storage.query(state, resMap => {
+    try {
+      writer.start()
 
-      if (results == 0) {
-        val delta = (System.currentTimeMillis().toDouble - started) / 1000
-        print("... query evaluated in " + delta + "s")
-      }
+      // Create a triplet of aggregators for each example
+      val collector = new Labeler((v: Val[_]) => {
+        state.head.histVars.view
+          .filterNot{_.dom.isKey}
+          .map(war => { war -> (war.dom match {
+          case CatDom(_,_,_) => new AggCat()
+          case NumDom(_,_) => new AggNum()
+          case DecDom(_) => new AggDec()
+        })}).toList
+      })
 
-      for (
-        (war, agg) <- collector(resMap(state.head.exVar));
-        wal = resMap(war) if wal.get != null
-      ) agg match {
-        case a:AggCat => a += wal.asInstanceOf[Cat].get
-        case a:AggDec => a += wal.asInstanceOf[Dec].get
-        case a:AggNum => a += wal.asInstanceOf[Num].get
-      }
-      results = results + 1
-    })
-    writer.interrupt()
-    println("... total number of " + results + " records for " +
-      collector.map.size + " examples aggregated in " +
-      (System.currentTimeMillis().toDouble -
-        started.toDouble) / 1000 + "s.")
+      // Execute query and fill the aggregators
+      storage.query(state, resMap => {
 
-    if (results == 0) throw new
-      TooOld("Query did not produce a single result")
+        if (results == 0) {
+          val delta = (System.currentTimeMillis().toDouble - started) / 1000
+          print("... query evaluated in " + delta + "s")
+        }
 
-    /*
-    collector.map.foreach{case (k,v) => {
-      println(" ===== " + k + " ===== ")
-      v.foreach{case (v,f) => println(v + " => " + f())}
-    }}
-    */
+        for (
+          (war, agg) <- collector(resMap(state.head.exVar)).view
+            .filter{case (war,_) => resMap(war).get != null}.par
+        ) agg match {
+          case a:AggCat => a += resMap(war).asInstanceOf[Cat].get
+          case a:AggDec => a += resMap(war).asInstanceOf[Dec].get
+          case a:AggNum => a += resMap(war).asInstanceOf[Num].get
+        }
+        results = results + 1
+      })
 
-    val retVal = for (
-      (example,varMapsInTuple) <- collector.map.toList;
-      (war, aggregators) <- varMapsInTuple;
-      (aggName, value) <- aggregators()
-    ) yield ((war, aggName), (example, value))
+      println("... total number of " + results + " records for " +
+        collector.map.size + " examples aggregated in " +
+        (System.currentTimeMillis().toDouble -
+          started.toDouble) / 1000 + "s and " +
+        Tools.usedMem + "MB memory.")
 
-    retVal.groupBy{_._1}.mapValues{_.map{_._2}.toMap}
+      if (results == 0) throw new
+        TooOld("Query did not produce a single result")
+      val retVal = for (
+        (example,varMapsInTuple) <- collector.map.toList;
+        (war, aggregators) <- varMapsInTuple;
+        (aggName, value) <- aggregators()
+      ) yield ((war, aggName), (example, value))
+
+      retVal.groupBy{_._1}.mapValues{_.map{_._2}.toMap}
+
+    } finally {
+      writer.interrupt()
+    }
   }
 
   private implicit def bigInt2Dec(i: BigInt) = BigDecimal(i)

@@ -47,19 +47,23 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
   (addRefments: Iterable[AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]])
   = for (r <- addRefments)
   yield {
+
+    val newVars
+    = r.added.variables.view // Only interested in variables...
+      .filter{supported} // ... that satisify the user-specified criteria
+      .filter{_.dom != r.old.head.exVar.dom} // ... not= example number (once is enough)
+      .filter{_.dom != r.old.head.clVar.dom} // ... not= the class (classification would be trivial)
+      .filter{v => r match { // ... if the variable was instantiated, do not add it!
+      case i:Instant[_] => v != i.oldVar
+      case _ => true
+    }}.toList
+
     new AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]() {
       def added = r.added
       def old = r.old
-      def neu = new Horn(
-        r.old.head.addOutVars(r.added.variables.view // Only interested in variables...
-          .filter{supported} // ... that satisify the user-specified criteria
-          .filter{_.dom != r.old.head.exVar.dom} // ... not= example number (once is enough)
-          .filter{_.dom != r.old.head.clVar.dom} // ... not= the class (classification would be trivial)
-          .filter{v => r match {
-            case i:Instant[_] => v != i.oldVar
-            case _ => true
-          }} // ... if the variable was instantiated, do not add it!
-        ),
+      def neu = new Horn(new HeadAtom(
+          r.old.head.exVar,r.old.head.clVar,
+          r.old.head.baseDate, newVars ),
         r.neu.bodyAtoms )
     }
   }
@@ -77,8 +81,7 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
       ra.added.variables filterNot (
         ra.neu.head.variables contains
       ) // This also excludes "ex" and "cl"
-    ) )
-  yield new AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]
+    ) ) yield new AddAtom[Horn[HeadAtom,Set[Atom[FFT]]]]
     with Instant[Horn[HeadAtom,Set[Atom[FFT]]]] {
       def old = ra.old
       def added = ra.added
@@ -86,6 +89,13 @@ abstract class ClauseBeam[Result](st: Starter, mode: Set[Btom[FFT]])
       def neuVal = ri.neuVal
       def neu = ri.neu
     }
+
+  override def onlySpecialize
+  (s: Horn[HeadAtom,Set[Atom[FFT]]])
+  = for (ri <- instantiateHornBody(
+      s, // This also excludes "ex" and "cl"...
+      s.variables.view filterNot ( s.head.variables contains )
+  )) yield ri.neu
 
   def descendants
   (clause: Horn[HeadAtom, Set[Atom[FFT]]])

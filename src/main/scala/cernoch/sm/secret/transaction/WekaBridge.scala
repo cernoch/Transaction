@@ -47,7 +47,7 @@ class WekaBridge[Index]
     instance.setDataset(wekaSet)
 
     for (
-      (value,col) <- atts.view map row.get zip (Stream from 0);
+      (value,col) <- atts.view map row.get zip (Stream from 0)
       if value.isDefined && value.get.get != null
     ) value.get match {
       case Num(int) => instance.setValue(col, int.toDouble)
@@ -120,17 +120,10 @@ object WekaBridge {
 
   /** Classifies all instances in the dataset */
   def classify(w: WekaBridge[_]) = {
-    try {
       val eval = new Evaluation(w.wekaSet)
       eval.crossValidateModel(new NaiveBayes(),
         w.wekaSet, 2, new Random(1))
       eval.pctCorrect()
-    } catch {
-      case e => {
-        println(w.wekaSet)
-        throw new RuntimeException(e)
-      }
-    }
   }
 
   /** Is a domain supported? */

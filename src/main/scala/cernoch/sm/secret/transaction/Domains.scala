@@ -10,8 +10,8 @@ object Domains {
   // buf domains with values
   private val buf = collection.mutable.ListBuffer[Domain[_]]()
 
-  //val ex = NumDom("transactionId", true)
-  val ex = NumDom("id", true)
+  val ex = NumDom("transactionId", true)
+  //val ex = NumDom("id", true)
   val cl = CatDom("fraudCode",
     allowed = Set("00", "01", "02", "03",
       "04", "05", "06", "07", "08", "09", "51"))
