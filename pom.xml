@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>cernoch.scalogic</groupId>
 	<artifactId>transaction_${scala.version}</artifactId>
-	<version>1.2</version>
+	<version>1.3</version>
   <name>${project.artifactId}</name>
   <description>Bank card transaction data</description>
 	<inceptionYear>2012</inceptionYear>

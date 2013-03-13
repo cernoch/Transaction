@@ -8,11 +8,15 @@ import weka.core.{Instance, Instances, Attribute, FastVector}
 import cernoch.sm.sql.QueryExecutor
 import cernoch.sm.sql.Tools._
 import collection.mutable
+import java.lang.IllegalArgumentException
+import scala.IllegalArgumentException
+import grizzled.slf4j.Logging
 
 
 class WekaBridge[Index]
 	(ralation: String = "table", atts: List[Var],
-	 var names: Map[Var,String] = null) {
+	 var names: Map[Var,String] = null)
+	extends Logging {
 
 	if (names == null)
 		names = name(atts){_.dom.name}
@@ -46,10 +50,21 @@ class WekaBridge[Index]
 		for (
 			(wal,col) <- atts.view map row.get zip (Stream from 0)
 			if wal.isDefined && wal.get.value != null
-		) wal.get match {
-			case n:Num[_] => instance.setValue(col, n.dom.toDouble(n.get.get))
-			case d:Dec[_] => instance.setValue(col, d.dom.toDouble(d.get.get))
-			case c:Cat[_] => instance.setValue(col, c.get.map{_.toString()}.orNull)
+		) {
+			wal.get match {
+				case n:Num[_] => instance.setValue(col, n.dom.toDouble(n.get.get))
+				case d:Dec[_] => instance.setValue(col, d.dom.toDouble(d.get.get))
+				case c:Cat[_] => {
+					try {
+						instance.setValue(col, c.get.map{_.toString()}.orNull)
+					} catch {
+						case t: IllegalArgumentException => {
+							throw new IllegalArgumentException(
+								s"Value ${c.get} is not part of the schema for column ${wal.get.dom}", t)
+						}
+					}
+				}
+			}
 		}
 		wekaSet.add(instance)
 		instIdx += id

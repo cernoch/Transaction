@@ -27,7 +27,7 @@ object Schema {
 	)
 
 	val instantiable: List[Domain with Iterable[String]]
-	= List(mcc)
+	= List(cardEntryMode)
 
 	lazy val atom = Atom(tableName, all.map{Var(_)})
   lazy val starter = Mode(atom)
