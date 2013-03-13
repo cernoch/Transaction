@@ -1,99 +1,68 @@
 package cernoch.sm.secret.transaction
 
 import cernoch.scalogic._
+import collection.mutable.ListBuffer
 
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
 object Domains {
 
-  // buf domains with values
-  private val buf = collection.mutable.ListBuffer[Domain[_]]()
+  private val _all = ListBuffer[Domain]()
+	private def add[T<:Domain](d:T) = { _all += d; d }
 
-  val ex = NumDom("transactionId", true)
-  //val ex = NumDom("id", true)
-  val cl = CatDom("fraudCode",
+  val ex = Domain.int("transactionId")
+
+	val dt = Domain.long("transactionDateTime")
+
+  val cl = Domain.cat("fraudCode",
     allowed = Set("00", "01", "02", "03",
       "04", "05", "06", "07", "08", "09", "51"))
 
-  val acceptorCountryCode = CatDom("acceptorCountryCode",
-    allowed = Set("AUT", "FRA", "GBR", "GER", "ITA", "ROM", "RUS", "SPA", "USA"))
-  buf += acceptorCountryCode
 
-  val acceptorName = CatDom("acceptorName")
-  buf += acceptorName
+  val acceptorCountryCode = add(Domain.cat("acceptorCountryCode",
+		allowed = Set("AUT", "FRA", "GBR", "GER", "ITA", "ROM", "RUS", "SPA", "USA") ))
 
-  val acquirerInstitutionId = CatDom("acquirerInstitutionId")
-  buf += acquirerInstitutionId
+  val acceptorName          = add(Domain.cat("acceptorName"))
+  val acquirerInstitutionId = add(Domain.cat("acquirerInstitutionId"))
+  val argosTransactionId    = add(Domain.cat("argosTransactionId"))
 
-  val argosTransactionId = CatDom("argosTransactionId", true)
-  buf += argosTransactionId
+  val billingAmount       = add(Domain.dec("billingAmount"))
+  val billingCurrencyCode = add(Domain.cat("billingCurrencyCode",
+		allowed = Set("EUR") ))
 
-  val billingAmount = DecDom("billingAmount")
-  buf += billingAmount
+  val cardEntryMode = add(Domain.cat("cardEntryMode",
+    allowed = Set("00", "01", "02", "03", "04", "91", "92") ))
 
-  val billingCurrencyCode = CatDom("billingCurrencyCode",
-    allowed = Set("EUR"))
-  buf += billingCurrencyCode
+  val cardId        = add(Domain.cat("cardId"))
+  val cardIssueDate = add(Domain.long("cardIssueDate"))
+	// TODO: Convert into (Domain with Integral[Date])
 
-  val cardEntryMode = CatDom("cardEntryMode",
-    allowed = Set("00", "01", "02", "03", "04", "91", "92"))
-  buf += cardEntryMode
+  val externalResultCode = add(Domain.cat("externalResultCode"))
+  val internalResultCode = add(Domain.cat("internalResultCode"))
 
-  val cardId = CatDom("cardId", true)
-  buf += cardId
+  val issuerId = add(Domain.cat("issuerId"))
+	val fiid     = add(Domain.cat("fiid"))
+  val mcc      = add(Domain.cat("mcc", allowed = Set(
+		"2500", "2600", "3200", "3210", "3220", "4050", "4060", "4500", "4600") ))
 
-  val cardIssueDate = NumDom("cardIssueDate")
-  buf += cardIssueDate
+  val posEntryCode = add(Domain.cat("posEntryMode",
+    allowed = Set("00", "01", "02", "03", "04", "91", "92") ))
 
-  val externalResultCode = CatDom("externalResultCode")
-  buf += externalResultCode
+  val realTimeScore = add(Domain.bigNum("realTimeScore"))
+  val retrievalReferenceNumber = add(Domain.cat("retrievalReferenceNumber"))
 
-  val fiid = CatDom("fiid", true)
-  buf += fiid
+  val securityType = add(Domain.bigNum("securityType"))
+  val terminalId   = add(Domain.cat("terminalId"))
 
-  val internalResultCode = CatDom("internalResultCode")
-  buf += internalResultCode
+	val transactionType         = add(Domain.cat("transactionType"))
+  val transactionAmount       = add(Domain.dec("transactionAmount"))
+  val transactionCurrencyCode = add(Domain.cat("transactionCurrencyCode",
+    allowed = Set("EUR", "RON", "USD")))
 
-  val issuerId = CatDom("issuerId")
-  buf += issuerId
+  // All domains in the schema
+  def all = ex :: cl :: dt :: (_all.toList)
 
-  val mcc = CatDom("mcc",
-    allowed = Set("2500", "2600", "3200", "3210", "3220", "4050", "4060", "4500", "4600"))
-  buf += mcc
-
-  val posEntryCode = CatDom("posEntryMode",
-    allowed = Set("00", "01", "02", "03", "04", "91", "92"))
-  buf += posEntryCode
-
-  val realTimeScore = NumDom("realTimeScore")
-  buf += realTimeScore
-
-  val retrievalReferenceNumber = CatDom("retrievalReferenceNumber", true)
-  buf += retrievalReferenceNumber
-
-  val securityType = NumDom("securityType")
-  buf += securityType
-
-  val terminalId = CatDom("terminalId", true)
-  buf += terminalId
-
-  val transactionAmount = DecDom("transactionAmount")
-  buf += transactionAmount
-
-  val transactionCurrencyCode = CatDom("transactionCurrencyCode",
-    allowed = Set("EUR", "RON", "USD"))
-  buf += transactionCurrencyCode
-
-  val dt = DecDom("transactionDateTime")
-  buf += dt
-
-  val transactionType = CatDom("transactionType")
-  buf += transactionType
-
-  // Absolutely buf domains
-  def all = ex :: cl :: (buf toList)
-
-  // buf domains without the example ID and class ID
-  def sem = buf toList
+  // Without the exampleID, class and date
+  def sem = _all.toList
 }
