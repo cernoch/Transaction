@@ -43,7 +43,7 @@ object CommandLine extends Logging {
 			s" table=${opts.table()}")
 
 		Schema.joints
-		= opts.joinCols().split(""" +""")
+		= opts.joinCols().split(""",""")
 			.filter{_.trim.length > 0}
 			.map{_.split("""\+""").map{name =>
 				Domains.all
@@ -191,7 +191,7 @@ object CommandLine extends Logging {
 
 		val joinCols = opt[String]("join",
 			descr = "Join tables via these columns (comma-separated)",
-			validate = _.split(""" +""")
+			validate = _.split(""",""")
 				.filter(_.trim.length > 0).length > 0,
 			default = Some(
 				Schema.joints.map{_.map{_.name}.mkString("+")}.mkString(" ")
