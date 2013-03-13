@@ -14,18 +14,16 @@ object Schema {
 
 	var tableName = "tbl_atos_transactions"
 
-	var joints
-	: List[Set[Domain]]
-	= List(
+	var joints: List[Set[Domain]] = List(
 		Set(terminalId),
 		Set(issuerId, cardIssueDate),
 		Set(acceptorName, transactionType)
 	)
 
 	val domWithValue: List[Domain with Numeric[_]] = List(
-		billingAmount,
-		cardIssueDate,
-		transactionAmount
+		billingAmount, transactionAmount, cardIssueDate,
+		securityType: Domain with Numeric[_],
+		realTimeScore: Domain with Numeric[_]
 	)
 
 	val instantiable: List[Domain with Iterable[String]]
