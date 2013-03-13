@@ -7,8 +7,9 @@ import sm.sql._
 import tools.Labeler
 import collection.mutable
 import grizzled.slf4j.Logging
-import org.rogach.scallop.ScallopConf
+import org.rogach.scallop.{LazyScallopConf, ScallopConf}
 import java.util.logging._
+import org.rogach.scallop.exceptions.{ScallopException, UnknownOption, ValidationFailure}
 
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
@@ -22,13 +23,23 @@ object CommandLine extends Logging {
 
     val opts = new CmdLineOpts(args)
 		try {
-	    info("Using driver: " + opts.drv())
-			info("SQL hostname: " + opts.host())
-			info("SQL database: " + opts.base())
-    	info("SQL username: " + opts.user())
-    	info("SQL password: " + opts.pass())
-			info("SQL table:    " + opts.table())
-		} catch {case e: Throwable => { opts.printHelp(); throw e } }
+			opts.verify()
+		} catch {
+			case e: ScallopException => {
+				println(e.getMessage)
+				println()
+				println("Valid command line arguments:")
+				opts.printHelp()
+				System.exit(1)
+			}
+		}
+
+		debug("Using driver: " + opts.drv())
+		debug("SQL hostname: " + opts.host())
+		debug("SQL database: " + opts.base())
+		debug("SQL username: " + opts.user())
+		debug("SQL password: " + opts.pass())
+		debug("SQL table:    " + opts.table())
 
 		Schema.tableName = opts.table()
 
@@ -36,7 +47,7 @@ object CommandLine extends Logging {
 			host = opts.host(),
 			user = opts.user(),
 			pass = opts.pass(),
-			dtbs = opts.base()
+			base = opts.base()
 		)
 
 		val sc = opts.drv().toLowerCase() match {
@@ -112,7 +123,7 @@ object CommandLine extends Logging {
   }
 
 	class CmdLineOpts(args: Array[String])
-		extends ScallopConf(args) {
+		extends LazyScallopConf(args) {
 
 		val drv = opt[String]("driver",
 			short = 's',

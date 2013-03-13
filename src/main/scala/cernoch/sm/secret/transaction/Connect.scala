@@ -5,22 +5,22 @@ import cernoch.sm.sql.jdbc._
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
-class Connect(
-    user: String = "sm",
-    pass: String = "sm",
-    dtbs: String = "sm",
-    host: String = "localhost") {
+class Connect
+	(host: String = "localhost",
+	 user: String,
+	 pass: String,
+	 base: String) {
 
-  def toMySQL ={
+	def toMySQL = {
 		new com.mysql.jdbc.Driver()
 		new MySQLAdaptor(
-	    host = host, user = user, pass = pass, dtbs = dtbs
-  	)
+			host = host, user = user, pass = pass, dtbs = base
+		)
 	}
 
-  def toPostgres = {
+	def toPostgres = {
 		new org.postgresql.Driver()
 		new PostgresAdaptor(
-    	host = host, user = user, pass = pass, dtbs = dtbs, prefix="")
+			host = host, user = user, pass = pass, dtbs = base, prefix="")
 	}
 }
