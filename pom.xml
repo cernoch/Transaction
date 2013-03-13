@@ -86,7 +86,9 @@
 						<launcher>
 							<id>run</id>
 							<args>
-								<arg>--driver=MySQL</arg>
+								<arg>-usm</arg>
+								<arg>-psm</arg>
+								<arg>-bsm</arg>
 							</args>
 							<mainClass>${mainClass}</mainClass>
 							<jvmArgs><jvmArg>-Xmx4G</jvmArg></jvmArgs>

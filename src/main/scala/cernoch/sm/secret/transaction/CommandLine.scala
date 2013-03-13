@@ -194,7 +194,7 @@ object CommandLine extends Logging {
 			validate = _.split(""",""")
 				.filter(_.trim.length > 0).length > 0,
 			default = Some(
-				Schema.joints.map{_.map{_.name}.mkString("+")}.mkString(" ")
+				Schema.joints.map{_.map{_.name}.mkString("+")}.mkString(",")
 			)
 		)
 	}
