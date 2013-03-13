@@ -34,12 +34,27 @@ object CommandLine extends Logging {
 			}
 		}
 
-		debug("Using driver: " + opts.drv())
-		debug("SQL hostname: " + opts.host())
-		debug("SQL database: " + opts.base())
-		debug("SQL username: " + opts.user())
-		debug("SQL password: " + opts.pass())
-		debug("SQL table:    " + opts.table())
+		info(s"SQL" +
+			s" driver=${opts.drv()}" +
+			s" host=${opts.host()}" +
+			s" database: ${opts.base()}" +
+			s" user=${opts.user()}" +
+			s" pass=${opts.pass().map(c => '*').mkString("")}" +
+			s" table=${opts.table()}")
+
+		Schema.joints
+		= opts.joinCols().split(""" +""")
+			.filter{_.trim.length > 0}
+			.map{_.split("""\+""").map{name =>
+				Domains.all
+					.find(_.name == name)
+					.getOrElse{
+						println("Unknown column name: " + name)
+						System.exit(1)
+						null
+					}
+			}.toSet
+		}.toList
 
 		Schema.tableName = opts.table()
 
@@ -62,20 +77,29 @@ object CommandLine extends Logging {
       math.round(WekaBridge.classify(bl)) + "%")
 
 		val dataSet = mutable.HashMap[Int,String]()
+		val ignored = mutable.HashSet[Int]()
 
 		ss.query(State().horn, resMap => {
 			(resMap(State.exId).value,
 				resMap(State.klass).value) match {
 				case (ex: Int, cl:String) => dataSet += (ex -> cl)
-				case (ex: Int, null) => warn(
-					"Ignoring " + State.exId.dom.name + "=" + ex + ", " +
-					"because '" + State.klass.dom.name + "' is not set." )
+				case (ex: Int, null) => ignored += ex
 				case _ => throw new IllegalArgumentException("Unexpected SQL schema")
 			}
 		})
-		info("There are " + dataSet.size + " examples in the database.")
 
-		println(Schema.others)
+		if (!ignored.isEmpty) {
+			warn(s"Because of missing '${State.klass.dom.name}'" +
+				s" ignoring '${State.exId.dom.name}' = ${ignored.mkString(",")}")
+		}
+
+		info(s"There are ${dataSet.size} examples in the database.")
+
+		val mods = Schema.others.map{mode => {
+			val n = Labeler.alphabet[Var]
+			mode.toString(false,n)
+		}}
+		info(s"Search will be structured using modes:\n${mods.mkString("\n")}")
 
     val nb = new ClauseBeam(
 			ss, Schema.others.toSet,
@@ -162,5 +186,16 @@ object CommandLine extends Logging {
 			descr = "Name of main table",
 			validate = _.trim.length > 0,
 			default = Some(Schema.tableName))
+
+
+
+		val joinCols = opt[String]("join",
+			descr = "Join tables via these columns (comma-separated)",
+			validate = _.split(""" +""")
+				.filter(_.trim.length > 0).length > 0,
+			default = Some(
+				Schema.joints.map{_.map{_.name}.mkString("+")}.mkString(" ")
+			)
+		)
 	}
 }

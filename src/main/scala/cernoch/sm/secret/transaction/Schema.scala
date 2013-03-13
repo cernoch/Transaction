@@ -14,15 +14,12 @@ object Schema {
 
 	var tableName = "tbl_atos_transactions"
 
-	private val joints
+	var joints
 	: List[Set[Domain]]
 	= List(
-		Set(acceptorName, transactionType),
-		Set(billingCurrencyCode),
-		Set(issuerId),
 		Set(terminalId),
-		Set(acceptorCountryCode, cardEntryMode),
-		Set(transactionType, transactionCurrencyCode)
+		Set(issuerId, cardIssueDate),
+		Set(acceptorName, transactionType)
 	)
 
 	val domWithValue: List[Domain with Numeric[_]] = List(
@@ -34,11 +31,9 @@ object Schema {
 	val instantiable: List[Domain with Iterable[String]]
 	= List(mcc)
 
-
-
-	val atom = Atom(tableName, all.map{Var(_)})
-  val starter = Mode(atom)
-  val others = joints.map{joint => {
+	lazy val atom = Atom(tableName, all.map{Var(_)})
+  lazy val starter = Mode(atom)
+  lazy val others = joints.map{joint => {
 		// Immitate the Prolog's copy_term
 		val copied = atom.subst( atom.vars
 			.map{v => v -> Var(v.dom) }
