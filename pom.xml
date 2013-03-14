@@ -102,7 +102,6 @@
 				<version>2.2-beta-5</version>
 				<configuration>
 					<descriptorRefs>
-						<descriptorRef>bin</descriptorRef>
 						<descriptorRef>jar-with-dependencies</descriptorRef>
 					</descriptorRefs>
 					<archive>

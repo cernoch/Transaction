@@ -60,7 +60,7 @@ class WekaBridge[Index]
 					} catch {
 						case t: IllegalArgumentException => {
 							throw new IllegalArgumentException(
-								s"Value ${c.get} is not part of the schema for column ${wal.get.dom}", t)
+								s"Value ${c.get} is not part of the schema for column ${wal.get.dom.name}", t)
 						}
 					}
 				}
