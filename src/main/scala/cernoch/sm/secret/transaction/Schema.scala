@@ -4,42 +4,80 @@ import cernoch.scalogic._
 import cernoch.sm.secret.transaction.Domains._
 import scala.Predef._
 
+object Schema {
+
+	def apply
+		(domains: Domains,
+		 table: String,
+		 datas: List[String],
+		 insts: List[String],
+		 joins: List[List[String]])
+	= {
+
+		val dataDoms = datas
+			.map{domains.byName}
+			.map{_ match {
+				case d: Domain with Numeric[_] => d
+				case d => throw new ParamException(
+					s"Domain '${d.name}' is used for classification," +
+						s" but it is not numeric.") }}
+
+		val instDoms = insts
+			.map{domains.byName}
+			.map{_ match {
+
+			case i: Domain with Iterable[_] => i.isEmpty match {
+
+				case false => i.head match {
+					case _:String => i.asInstanceOf[Domain with Iterable[String]]
+					case _ => throw new ParamException(s"Domain '${i.name}'" +
+						s" has values for instantiations, but not Strings." +
+						s" This looks like an internal error.")
+				}
+
+				case true => throw new ParamException(
+					s"Domain '${i.name}' has no values for instantiation." )
+			}
+
+			case d => throw new ParamException(
+				s"Domain '${d.name}' is used for classification," +
+					s" but it is not numeric.")
+		}}
+
+		val joinDoms = joins.map{_.map{domains.byName}}
+
+		() => new Schema(domains, table, dataDoms, instDoms, joinDoms)
+	}
+}
+
 /**
  * Defines the language bias for the search
  *
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
-object Schema {
-	import Domains._
+class Schema
+	(domains: Domains,
+	 val table: String,
+	 val datas: List[Domain with Numeric[_]],
+	 val insts: List[Domain with Iterable[String]],
+	 val joins: List[List[Domain]]
+) {
+	val ident = Var(domains.ident)
+	val klass = Var(domains.klass)
+	val stamp = Var(domains.stamp)
 
-	var tableName = "tbl_atos_transactions"
+	val other = domains.other.map{Var(_)}
 
-	var joints: List[Set[Domain]] = List(
-		Set(terminalId),
-		Set(issuerId, cardIssueDate),
-		Set(acceptorName, transactionType)
-	)
+	val byDom = (
+			ident.dom -> ident ::
+			klass.dom -> ident ::
+			stamp.dom -> ident ::
+			other.map{d => d.dom -> d}
+		).toMap
 
-	val domWithValue: List[Domain with Numeric[_]] = List(
-		billingAmount, transactionAmount, cardIssueDate,
-		securityType: Domain with Numeric[_],
-		realTimeScore: Domain with Numeric[_]
-	)
+	val atom = Atom(table, ident :: klass :: stamp :: other)
 
-	val instantiable: List[Domain with Iterable[String]]
-	= List(cardEntryMode)
-
-	lazy val atom = Atom(tableName, all.map{Var(_)})
-  lazy val starter = Mode(atom)
-  lazy val others = joints.map{joint => {
-		// Immitate the Prolog's copy_term
-		val copied = atom.subst( atom.vars
-			.map{v => v -> Var(v.dom) }
-			.toMap[Term,Term].get(_)
-		)
-		val iVar = copied.args
-			.collect{case v: Var => Var(v.dom)}
-			.filter{arg => joint.contains(arg.dom)}
-		Mode(copied, iVar.toSet)
-	}}
+	val modes = joins
+		.map{_.map(byDom).toSet}
+		.map{Mode(atom,_)}
 }

@@ -1,9 +1,8 @@
 package cernoch.sm.secret.transaction
 
-import cernoch.sm.sql.jdbc._
-import java.sql.{PreparedStatement, Connection}
-import cernoch.scalogic.Val
+import cernoch.scalogic.sql._
 import grizzled.slf4j.Logging
+import cernoch.scalogic.Domain
 
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
@@ -17,22 +16,25 @@ class Connect
 	def toMySQL = {
 		new com.mysql.jdbc.Driver()
 		new MySQLAdaptor(
-			host = host, user = user, pass = pass, dtbs = base
-		) {
-			override protected def prepare
-			(con: Connection,
-			 sql: String, arg: List[Val] = List())
-			: PreparedStatement
-			= {
-				println(s"SQL query: ${sql} with arguments ${arg.mkString(",")}.")
-				super.prepare(con,sql,arg)
-			}
-		}
+			host = host, user = user,
+			pass = pass, base = base
+		) with QueryLogger with Nullable
 	}
 
 	def toPostgres = {
 		new org.postgresql.Driver()
 		new PostgresAdaptor(
-			host = host, user = user, pass = pass, dtbs = base, prefix="")
+			host = host, user = user,
+			pass = pass, base = base
+		) with QueryLogger with Nullable
+	}
+
+	trait Nullable extends Adaptor {
+		var deNull = Set[Domain]()
+
+		override def convFromSQL[T](o:T,d:Domain)
+		= if (deNull.contains(d) && (o==null || o.isInstanceOf[String])) {
+			(if (o == null) "none" else "some").asInstanceOf[T]
+		} else o
 	}
 }

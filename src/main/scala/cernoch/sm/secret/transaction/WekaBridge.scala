@@ -1,38 +1,35 @@
 package cernoch.sm.secret.transaction
 
 import cernoch.scalogic._
+import cernoch.scalogic.sql.SqlExecutor
+import cernoch.scalogic.sql.Tools._
+
 import weka.classifiers.Evaluation
 import weka.classifiers.bayes.NaiveBayes
-import java.util.Random
 import weka.core.{Instance, Instances, Attribute, FastVector}
-import cernoch.sm.sql.QueryExecutor
-import cernoch.sm.sql.Tools._
+
+import java.util.Random
 import collection.mutable
-import java.lang.IllegalArgumentException
-import scala.IllegalArgumentException
 import grizzled.slf4j.Logging
 
 
-class WekaBridge[Index]
-	(ralation: String = "table", atts: List[Var],
-	 var names: Map[Var,String] = null)
-	extends Logging {
+class WekaBridge
+	(attributes: List[Var])
+	extends Logging
+{
 
-	if (names == null)
-		names = name(atts){_.dom.name}
+	val names = name(attributes){_.dom.name}
 
-	if (atts.size <= 1) throw new IllegalArgumentException(
+	if (attributes.size <= 1) throw new IllegalArgumentException(
 		"At least 2 attributes needed: 1 for class and 1 for data.")
 
-	/** The dataset itself */
-	private val wekaSet
-	= new Instances(Schema.tableName,
-		atts.map(createAttribute), 1000)
+	/** The Weka dataset */
+	private val wekaSet = new Instances(
+		"transaction", attributes.map(createAttribute), 1000 )
 	wekaSet.setClassIndex(0)
 
-
 	/** Maps each column index to its row in the dataset */
-	private var instIdx = new mutable.ListBuffer[Index]()
+	private var instIdx = new mutable.ListBuffer[Val]()
 
 	/** Converts a domain into an attribute */
 	protected def createAttribute(v: Var)
@@ -43,39 +40,35 @@ class WekaBridge[Index]
 	}
 
 	/** Add new instance into the dataset */
-	def add(id: Index, row: Map[Var,Val]) = {
-		val instance = new Instance(atts.size)
+	def add(ident: Val, result: Map[Var,Val]) = {
+		val instance = new Instance(attributes.size)
 		instance.setDataset(wekaSet)
 
 		for (
-			(wal,col) <- atts.view map row.get zip (Stream from 0)
+			(wal,col) <- attributes.view map result.get zip (Stream from 0)
 			if wal.isDefined && wal.get.value != null
 		) {
 			wal.get match {
-				case n:Num[_] => instance.setValue(col, n.dom.toDouble(n.get.get))
-				case d:Dec[_] => instance.setValue(col, d.dom.toDouble(d.get.get))
-				case c:Cat[_] => {
-					try {
-						instance.setValue(col, c.get.map{_.toString()}.orNull)
-					} catch {
-						case t: IllegalArgumentException => {
-							throw new IllegalArgumentException(
-								s"Value ${c.get} is not part of the schema for column ${wal.get.dom.name}", t)
-						}
-					}
-				}
+				case NumVal(v,n) => instance.setValue(col, n.toDouble(v))
+				case StrVal(v,i)
+				=>try { instance.setValue(col, Option(v).map{_.toString()}.orNull) }
+				catch { case t: IllegalArgumentException => {
+					info(s"Ignoring value '$v' in ex. '$ident', bacause" +
+						s" not part of '${wal.get.dom.name}' domain.", t)
+					instance.setMissing(col)
+				}}
 			}
 		}
 		wekaSet.add(instance)
-		instIdx += id
+		instIdx += ident
 	}
 
 
 
 	/** Adds an attribute to a dataset */
-	def enrich( attr: Var, vals: Map[Index,Double] )
+	def enrich( attr: Var, vals: Map[Val,Double] )
 	= {
-		val neu = new WekaBridge[Index]( atts = atts ::: List(attr) )
+		val neu = new WekaBridge(attributes ::: List(attr))
 		neu.instIdx.clear()
 		neu.instIdx ++= instIdx
 
@@ -104,33 +97,47 @@ class WekaBridge[Index]
 	implicit def toFastVec(a: Iterable[Any])
 	= if (a == null) null else {
 		val vector = new FastVector(a.size)
-		a.foreach(vector.addElement)
+		a.foreach{vector.addElement(_)}
 		vector
 	}
 }
 
 
 
-object WekaBridge {
+object WekaBridge extends Logging {
 
 	/** Dataset constructed from the given query */
-	def apply(st: State, store: QueryExecutor)
+	def apply(st: State, store: SqlExecutor)
 	= {
-		val wb = new WekaBridge[Int](
-			atts = (st.head.klass :: st.head.others)
-				.filter{v => supported(v.dom)})
+		// New dataset with all variables, klass first
+		val wekaBridge = new WekaBridge(
+			(st.head.klass :: st.head.others)
+				.filter{v => supported(v.dom)}
+		)
+		// Load all instances from the database
+		store.query(st.horn, mapa => {
 
-		store.query(st.horn, mapa =>
-			wb.add(mapa(st.head.exId).value.asInstanceOf[Int], mapa))
+			val ident = mapa(st.head.exId)
+			val klass = mapa(st.head.klass)
 
-		wb
+			// Cannot recognize if klass is null
+			if (klass.value == null)
+				warn(s"Example '$ident' ignored, its class is null.")
+			else
+				wekaBridge.add(ident,mapa)
+		})
 	}
 
 	/** Classifies all instances in the dataset */
-	def classify(w: WekaBridge[_]) = {
+	def classify(w: WekaBridge) = {
 		val eval = new Evaluation(w.wekaSet)
-		eval.crossValidateModel(new NaiveBayes(),
-			w.wekaSet, 2, new Random(1))
+
+		eval.crossValidateModel(
+			new NaiveBayes(),
+			w.wekaSet,
+			2,
+			new Random(1)
+		)
 		eval.pctCorrect()
 	}
 

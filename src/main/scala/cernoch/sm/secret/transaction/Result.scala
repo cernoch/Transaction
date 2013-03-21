@@ -1,6 +1,6 @@
 package cernoch.sm.secret.transaction
 
-import cernoch.scalogic.{Val, Var}
+import cernoch.scalogic.Var
 
 /**
  * Bump-hunting algorithm via ncALP metric
@@ -8,7 +8,7 @@ import cernoch.scalogic.{Val, Var}
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
 
-case class Result(
-	war: Var, agg: String,
-  dat: WekaBridge[Int],
-	acc: Double)
+case class Result
+	(war: Var, agg: String,
+	 dat: WekaBridge,
+	 acc: Double )
