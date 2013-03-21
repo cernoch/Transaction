@@ -33,8 +33,9 @@ class Connect
 		var deNull = Set[Domain]()
 
 		override def convFromSQL[T](o:T,d:Domain)
-		= if (deNull.contains(d) && (o==null || o.isInstanceOf[String])) {
-			(if (o == null) "none" else "some").asInstanceOf[T]
+		= if (deNull.contains(d)) {
+			val conv = if (o == null) "none" else "some"
+			conv.asInstanceOf[T]
 		} else o
 	}
 }

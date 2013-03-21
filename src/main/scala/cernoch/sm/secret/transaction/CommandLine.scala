@@ -15,8 +15,8 @@ import java.util.logging._
  */
 object CommandLine extends Logging {
 	def main(args: Array[String]) {
-
 		try {
+			useCustomLogger()
 
 			val options = CmdLineOpts(args)
 
@@ -27,6 +27,8 @@ object CommandLine extends Logging {
 				pass = options.pass(),
 				base = options.base()
 			)
+
+			println(options.datas())
 
 			val adapter
 			= options.drv().toLowerCase match {
@@ -39,6 +41,7 @@ object CommandLine extends Logging {
 				table = options.table(),
 				ident = options.ident(),
 				klass = options.klass(),
+				deNul = options.deNul(),
 				stamp = options.stamp(),
 				joins = options.joins(),
 				insts = options.insts(),
@@ -65,7 +68,8 @@ object CommandLine extends Logging {
 					.map{_.toString(short=false,names=Labeler.alphabet[Var])}
 					.mkString("\n") )
 
-			val storage = new SqlStorage(
+			val storage
+			= new SqlStorage(
 				ada = adapter,
 				sch = List(initSchema.atom)
 			).open
@@ -86,10 +90,10 @@ object CommandLine extends Logging {
 
 				// Cannot recognize if klass is null
 				if (klass.value == null)
-					warn(s"Example '$ident' ignored, class is null.")
+					warn(s"Example $ident ignored, class is null.")
 
 				else if (!klass.value.isInstanceOf[String])
-					warn(s"Example '$ident' ignored, class is not String.")
+					warn(s"Example $ident ignored, class is not String.")
 
 				else {
 					wekaBridge.add(ident, mapa)
@@ -112,47 +116,15 @@ object CommandLine extends Logging {
 				baseAcc = baseLineAccuracy
 			){
 				def sourceState = starter
+				probe = new LoggingProbe()
 				maxConsNonImp = 1
 				beamWidth = 3
 			}
 
-			beamSearch.probe
-				= new SearchProbe[State,Result]() {
-				override def searchIteration
-				( draughts: Iterable[(State,Result)],
-					breedins: Iterable[State] ) {
-					println("""//================================\\""")
-					println("""||     STARTING A NEW ITERATION   ||""")
-					println("""\\================================//""")
-				}
-
-				override def statesGenerated
-				(states: Iterable[State]) {
-					println("Generated " + states.size + " new clauses.")
-				}
-
-				override def bestUpdated
-				(state: State, result: Result) {
-					val n = Labeler.alphabet[Var]
-					println(">>>>> In this iteration, a new optimum was found <<<<<")
-					println("SCORE = +" + (math.round(result.acc * 100).toDouble / 100) + "% using "
-						+ result.agg + "(" + result.war.toString(false, n) + ").")
-					println("STATE = " + state.horn.toString(true, n))
-				}
-			}
-
 			val (state,result) = beamSearch.call().head
 			val n = Labeler.alphabet[Var]
-			println()
-			println("""//================================\\""")
-			println("""||             FINISHED           ||""")
-			println("""\\================================//""")
-
-			println("Suggesting to use the following query:")
-			println("SCORE = +" + (math.round(result.acc * 100).toDouble / 100.0) + "% using "
-				+ result.agg + "(" + result.war.toString(false, n) + ").")
-			println("STATE = " + state.horn.toString(false, n))
-
+			info(s"Search finished. Suggesting to use the following query: "
+				+ LoggingProbe.stateScore(state,result) )
 
 		} catch {
 			case e: ParamException => {

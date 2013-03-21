@@ -53,7 +53,7 @@ class WekaBridge
 				case StrVal(v,i)
 				=>try { instance.setValue(col, Option(v).map{_.toString()}.orNull) }
 				catch { case t: IllegalArgumentException => {
-					info(s"Ignoring value '$v' in ex. '$ident', bacause" +
+					info(s"Ignoring value '$v' in ex. $ident, bacause" +
 						s" not part of '${wal.get.dom.name}' domain.", t)
 					instance.setMissing(col)
 				}}

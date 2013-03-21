@@ -118,8 +118,7 @@ abstract class ClauseBeam
 		var best: Result = null
 
 		val n = Labeler.alphabet[Var]
-		println("----- Executing a new query -----")
-		println(state.horn.toString(short=true,names=n))
+		info(s"Executing query: ${state.horn.toString(short=true,names=n)}")
 
 		// Prepare for OutOfMemoryException
 		val tooNew = new Reconsider(
@@ -143,8 +142,7 @@ abstract class ClauseBeam
 		} catch {
 			case _:OutOfMemoryError => {
 				System.gc()
-				println()
-				println("Clause not evaluated becaues of memory limits.")
+				info("Clause not evaluated becaues of memory limits.")
 				throw tooNew
 			}
 			case x:SQLException => {
@@ -158,8 +156,8 @@ abstract class ClauseBeam
 			"No aggregable variable in the query.")
 
 		val bestAcc = (math.round(best.acc * 100).toDouble / 100)
-		println(s"Best accuracy +$bestAcc% achieved using ${best.agg}" +
-			s" on variable ${best.war.toString(short=false,names=n)}.")
+		info(s"Best accuracy +$bestAcc% achieved using ${best.agg} " +
+		     s"on variable ${best.war.toString(short=false,names=n)}.")
 
 		best
 	}
@@ -188,7 +186,7 @@ abstract class ClauseBeam
 						Thread.sleep(10000)
 						val elapsed = (System.currentTimeMillis() - started) / 1000
 						val usedMem = Tools.usedMem
-						print(s"... $results results done in ${elapsed}s using ${usedMem}MB mem")
+						debug(s"$results results done in ${elapsed}s using ${usedMem}MB mem")
 					}
 				} catch {
 					case _:OutOfMemoryError =>
@@ -217,7 +215,7 @@ abstract class ClauseBeam
 				// Print info on first execution
 				if (results == 0) {
 					val delta = (System.currentTimeMillis().toDouble - started) / 1000
-					print("... query evaluated in " + delta + "s")
+					info(s"Query evaluated in ${delta}s")
 				}
 
 				// The example No. must be an integer! No other way!
@@ -229,19 +227,15 @@ abstract class ClauseBeam
 				state.head.others.foreach{war => {
 					val wal = resMap(war)
 					if (wal.value != null) {
+						varExAgg(war).get(exNo).foreach(agg => wal match {
+								case DecVal(v:BigDec,_) => agg += v
+								case DecVal(v,f)        => agg += BigDec(f.toDouble(v))
 
-						val agg = varExAgg(war)
-						agg.get(exNo) match {
-							case None => // No aggregator for the example
-							case Some(aggregator) => wal match {
+								case NumVal(v:BigInt,_) => agg += BigDec(v)
+								case NumVal(v,n)        => agg += BigDec(n.toLong(v))
 
-								case DecVal(v:BigDec,_) => aggregator += v
-								case DecVal(v,f) => aggregator += BigDec(f.toDouble(v))
-
-								case NumVal(v:BigInt,_) => aggregator += BigDec(v)
-								case NumVal(v,n) => aggregator += BigDec(n.toLong(v))
-							}
-						}
+								case _ => trace(s"Ignoring value $wal:${wal.dom} in examle $exNo.")
+							})
 					}
 				}}
 				results += 1
@@ -266,8 +260,8 @@ abstract class ClauseBeam
 		) out.addBinding((war, name), (exNo, value))
 
 		val usedMem = Tools.usedMem
-		println(s"... total of ${results} records aggregated" +
-			s" in ${elapsed}s and ${usedMem} MB memory.")
+		info(s"Total of $results records aggregated" +
+		     s" in ${elapsed}s and ${usedMem}MB memory.")
 
 		out.toMap + ( (state.head.exId,"COUNT") ->
 			cntExAgg.map{case (k,v) => k -> v.toDouble} )

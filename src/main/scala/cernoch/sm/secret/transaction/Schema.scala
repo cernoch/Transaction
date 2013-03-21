@@ -16,11 +16,11 @@ object Schema {
 
 		val dataDoms = datas
 			.map{domains.byName}
-			.map{_ match {
+			.map{ _ match {
 				case d: Domain with Numeric[_] => d
-				case d => throw new ParamException(
-					s"Domain '${d.name}' is used for classification," +
-						s" but it is not numeric.") }}
+				case d => throw new ParamException(s"Domain '${d.name}'" +
+					" is used for classification, but it is not numeric." )
+			}}
 
 		val instDoms = insts
 			.map{domains.byName}
@@ -40,8 +40,7 @@ object Schema {
 			}
 
 			case d => throw new ParamException(
-				s"Domain '${d.name}' is used for classification," +
-					s" but it is not numeric.")
+				s"Domain '${d.name}' has no values for instantiation.")
 		}}
 
 		val joinDoms = joins.map{_.map{domains.byName}}

@@ -13,6 +13,7 @@ object Domains extends Logging {
 		 table: String,
 		 ident: String,
 		 klass: String,
+		 deNul: Boolean,
 		 stamp: String,
 		 datas: List[String],
 		 insts: List[String],
@@ -23,39 +24,38 @@ object Domains extends Logging {
 		trace(s"Detecting domains for columns: ${allNames.mkString(", ")}.")
 
 		val sniffer = new SchemaSniffer(ada)
-		val allDomains = sniffer.detectAtoms(table, allNames)
+		val allDomains = sniffer.detectAtoms(table, allNames).toSet.map{d:Domain =>
+				deNul match {
+					case false => d
+					case true => if (klass != d.name) d else
+						StrDom.Limited(klass, Set("none","some"))
+				}
+			}
+
 
 		allDomains.map(domainAttributes).foreach(dom => {
-			val x = dom.map{case (k,v) => s"$k => $v"}.mkString("\n")
-			debug("Detected a domain.\n" + x)
+			val x = dom.map{case (k,v) => s"$k => $v"}.mkString(", ")
+			info("Detected a domain: " + x)
 		})
 
 		val byName = allDomains.map{d => d.name -> d}.toMap
 
-		val identDom = byName(ident) match {
-			case IntDom(_,i) => i
-			case _ => throw new ParamException(
-				"SQL schema error: Domain of 'ident' column is not of type Integer.")
-		}
+		//info("Class of 'ident' domain is " + byName(ident).getClass.getName)
+		val identDom = byName(ident)
 
 		val klassDom = byName(klass) match {
 			case d: Domain with Iterable[_] => d.head match {
 				case _:String => d.asInstanceOf[Domain with Iterable[String]]
-				case _ => throw new ParamException(
-					"SQL schema error: Domain of 'class'" +
-					" column is not of type String.")
+				case _ => throw new ParamException("SQL schema error:" +
+					" Domain of 'class' column is not of type String.")
 			}
-			case _ => throw new ParamException(
-				"SQL schema error: Domain of 'class'" +
-				" column does not have restricted values.")
+			case _ => throw new ParamException("SQL schema error:" +
+				" Domain of 'class' column does not have restricted values.")
 		}
 
-		val stampDom = byName(stamp) match {
-			case i: Domain with Numeric[_] => i
-			case _ => throw new ParamException(
-				"SQL schema error: Domain of 'stamp'" +
-					" column does not have a numeric type.")
-		}
+		val stampDom = byName(stamp)
+		if (stampDom.isInstanceOf[Numeric[_]]) warn("Domain of" +
+			" 'stamp' ($stamp) column does not have a numeric type.")
 
 		new Domains(identDom, klassDom, stampDom,
 			(allDomains - identDom- klassDom- stampDom).toList )
@@ -88,9 +88,9 @@ object Domains extends Logging {
 }
 
 case class Domains
-	(ident: Domain with Integral[Int],
+	(ident: Domain,
 	 klass: Domain with Iterable[String],
-	 stamp: Domain with Numeric[_],
+	 stamp: Domain,
 	 other: List[Domain] )
 {
 	val all = ident :: klass :: stamp :: other

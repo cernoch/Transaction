@@ -35,15 +35,14 @@ object CmdLineOpts extends Logging {
 class CmdLineOpts(args: Array[String])
 	extends LazyScallopConf(args) {
 
-	val drv = opt[String]("driver", short = 's',
+	val drv = opt[String]("driver", short = 'a',
 		descr = "Connect to 'MySQL' or 'Postgres' database",
 		default = Some("MySQL"),
 		validate = _.toLowerCase match {
 			case "postgres" => true
 			case "mysql" => true
 			case _ => false
-		}
-	)
+		} )
 
 	val host = opt[String]("hostname", short='h',
 		descr = "Hostname of the SQL server",
@@ -65,27 +64,28 @@ class CmdLineOpts(args: Array[String])
 		validate = _.trim.length > 0,
 		required = true )
 
-	val table = opt[String]("table", short='t',
+	val table = opt[String]("table", noshort=true,
 		descr = "SQL table with the dataset",
 		default = Some("tbl_atos_transactions"),
 		validate = _.trim.length > 0 )
 
-	val ident = opt[String]("ident", short='i',
+	val ident = opt[String]("ident", noshort=true,
 		descr = "Column with unique transaction identifier",
 		default = Some("transactionId"),
 		validate = _.trim.length > 0 )
 
-	val deNul = toggle("denull-ident", short='n',
+	val deNul = toggle("denull-klass", short='n', prefix="no-",
 		descrYes = "Convert NULL to 'none' and other values to 'some'",
-		descrNo = "Keep values in 'ident' column intact" )
+		descrNo = "Keep values in 'klass' column intact",
+		default = Some(true) )
 
-	val klass = opt[String]("class", short='c',
-		descr = "Column with transcation class (used for prediction)",
+	val klass = opt[String]("class", noshort=true,
+		descr = "Column with transcation class, used for prediction",
 		default = Some("fraudCode"),
 		validate = _.trim.length > 0 )
 
-	val stamp = opt[String]("stamp", short='s',
-		descr = "Column with transaction time stamp (for preserving causality)",
+	val stamp = opt[String]("stamp", noshort=true,
+		descr = "Column with transaction time stamp, for preserving causality",
 		default = Some("transactionDateTime"),
 		validate = _.trim.length > 0 )
 
@@ -97,9 +97,9 @@ class CmdLineOpts(args: Array[String])
 		descr = "Columns which can be made equal to a value",
 		validate = _.map{_.trim.length > 0}.foldLeft(true){_ && _} )
 
-	val joins = opt[List[List[String]]]("joinVia", short='j',
+	val joins = opt[List[List[String]]]("join", short='j',
 		validate = _.flatMap{_.map{_.trim.length > 0}}.foldLeft(true){_ && _},
-		descr = "Join tables via these columns (comma-separated)",
+		descr = "Join tables via these columns, comma-separated",
 		default = Some(List(
 			List("terminalId"),
 			List("acceptorName"),

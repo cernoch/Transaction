@@ -96,13 +96,12 @@
 				<configuration>
 					<launchers>
 						<launcher>
-							<id>run</id>
+							<id>run</id><mainClass>${mainClass}</mainClass>
 							<args>
-								<arg>-usm</arg>
-								<arg>-psm</arg>
-								<arg>-bsm</arg>
+								<arg>-username</arg><arg>sm</arg>
+								<arg>-password</arg><arg>sm</arg>
+								<arg>-database</arg><arg>sm</arg>
 							</args>
-							<mainClass>${mainClass}</mainClass>
 							<jvmArgs><jvmArg>-Xmx4G</jvmArg></jvmArgs>
 						</launcher>
 					</launchers>
@@ -125,7 +124,7 @@
 				<executions><execution>
 					<phase>package</phase>
 					<goals><goal>single</goal></goals>
-					</execution></executions>
+				</execution></executions>
 			</plugin>
 			<!-- Test executor -->
 			<plugin><groupId>org.apache.maven.plugins</groupId>

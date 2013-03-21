@@ -9,10 +9,10 @@ import cernoch.scalogic._
 @RunWith(classOf[JUnitRunner])
 class RefineTest extends Specification {
 
-	val numD = Domain.int("num")
+	val numD = IntDom("num")
 
-	val catD1 = Domain.cat("cat1")
-	val catD2 = Domain.cat("cat1", Set("A", "B", "C"))
+	val catD1 = StrDom("cat1")
+	val catD2 = StrDom.Limited("cat1", Set("A", "B", "C"))
 
 	val x = Var(numD)
 	val y = Var(catD1)
