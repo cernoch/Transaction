@@ -16,8 +16,6 @@ import java.util.logging._
 object CommandLine extends Logging {
 	def main(args: Array[String]) {
 		try {
-			useCustomLogger()
-
 			val options = CmdLineOpts(args)
 
 			val connector

@@ -23,7 +23,7 @@ class MinLogFormat extends SimpleFormatter {
 	protected def levelName(level: Level): String = {
 		if (Level.SEVERE  == level) return "SEV"
 		if (Level.WARNING == level) return "WRN"
-		if (Level.INFO    == level) return "Inf"
+		if (Level.INFO    == level) return "nfo"
 		if (Level.CONFIG  == level) return "cfg"
 		if (Level.FINE    == level) return "---"
 		if (Level.FINER   == level) return " - "

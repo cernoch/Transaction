@@ -2,32 +2,40 @@ package cernoch.sm.secret.transaction
 
 import cernoch.scalogic.sql._
 import grizzled.slf4j.Logging
-import cernoch.scalogic.Domain
+import cernoch.scalogic.{Val, Domain}
+import java.sql.Connection
 
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
 class Connect
 	(host: String = "localhost",
-	 user: String,
-	 pass: String,
+	 user: String, pass: String,
 	 base: String) extends Logging {
 
-	def toMySQL = {
-		new com.mysql.jdbc.Driver()
-		new MySQLAdaptor(
+	def toMySQL
+	= new MySQLAdaptor(
 			host = host, user = user,
 			pass = pass, base = base
-		) with QueryLogger with Nullable
+		) with ConnectionCache
+		  with QueryLogger
+		  with Nullable {
+
+		override def queryLimit = Some(1000 * 1000)
 	}
 
-	def toPostgres = {
-		new org.postgresql.Driver()
-		new PostgresAdaptor(
+	def toPostgres
+	=	new PostgresAdaptor(
 			host = host, user = user,
 			pass = pass, base = base
-		) with QueryLogger with Nullable
+		) with ConnectionCache
+			with QueryLogger
+			with Nullable {
+
+		override def queryLimit = Some(1000 * 1000)
 	}
+
+
 
 	trait Nullable extends Adaptor {
 		var deNull = Set[Domain]()

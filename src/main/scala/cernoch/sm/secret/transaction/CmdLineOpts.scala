@@ -64,12 +64,12 @@ class CmdLineOpts(args: Array[String])
 		validate = _.trim.length > 0,
 		required = true )
 
-	val table = opt[String]("table", noshort=true,
+	val table = opt[String]("table", short='T',
 		descr = "SQL table with the dataset",
 		default = Some("tbl_atos_transactions"),
 		validate = _.trim.length > 0 )
 
-	val ident = opt[String]("ident", noshort=true,
+	val ident = opt[String]("ident", short='I',
 		descr = "Column with unique transaction identifier",
 		default = Some("transactionId"),
 		validate = _.trim.length > 0 )
@@ -79,12 +79,12 @@ class CmdLineOpts(args: Array[String])
 		descrNo = "Keep values in 'klass' column intact",
 		default = Some(true) )
 
-	val klass = opt[String]("class", noshort=true,
+	val klass = opt[String]("class", short='C',
 		descr = "Column with transcation class, used for prediction",
 		default = Some("fraudCode"),
 		validate = _.trim.length > 0 )
 
-	val stamp = opt[String]("stamp", noshort=true,
+	val stamp = opt[String]("stamp", short='S',
 		descr = "Column with transaction time stamp, for preserving causality",
 		default = Some("transactionDateTime"),
 		validate = _.trim.length > 0 )
