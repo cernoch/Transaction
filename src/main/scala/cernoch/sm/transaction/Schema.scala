@@ -1,7 +1,6 @@
 package cernoch.sm.transaction
 
 import cernoch.scalogic._
-import cernoch.sm.secret.transaction.Domains._
 import scala.Predef._
 
 object Schema {
