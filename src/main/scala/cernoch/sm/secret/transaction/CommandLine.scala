@@ -16,6 +16,7 @@ import java.util.logging._
 object CommandLine extends Logging {
 	def main(args: Array[String]) {
 		try {
+			useCustomLogger()
 			val options = CmdLineOpts(args)
 
 			val connector
@@ -25,8 +26,6 @@ object CommandLine extends Logging {
 				pass = options.pass(),
 				base = options.base()
 			)
-
-			println(options.datas())
 
 			val adapter
 			= options.drv().toLowerCase match {
@@ -102,7 +101,7 @@ object CommandLine extends Logging {
 			info(s"There are ${dataSet.size} examples in the database.")
 
 			val baseLineAccuracy = WekaBridge.classify(wekaBridge)
-			info(s"Baseline accuracy = ${math.round(baseLineAccuracy*100)/100}%")
+			info(s"Baseline accuracy = ${Result.Format.format(baseLineAccuracy)}%")
 
 			val beamSearch
 			= new ClauseBeam(
@@ -115,12 +114,14 @@ object CommandLine extends Logging {
 			){
 				def sourceState = starter
 				probe = new LoggingProbe()
-				maxConsNonImp = 1
+
 				beamWidth = 3
+				maxConsNonImp = 1
+				queryTimeOut = options.queryTimeOut()
+				queryRowLimit = options.queryRowLimit()
 			}
 
 			val (state,result) = beamSearch.call().head
-			val n = Labeler.alphabet[Var]
 			info(s"Search finished. Suggesting to use the following query: "
 				+ LoggingProbe.stateScore(state,result) )
 

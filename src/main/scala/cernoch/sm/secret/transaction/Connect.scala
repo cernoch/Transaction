@@ -18,7 +18,6 @@ class Connect
 			host = host, user = user,
 			pass = pass, base = base
 		) with ConnectionCache
-		  with QueryLogger
 		  with Nullable {
 
 		override def queryLimit = Some(1000 * 1000)
@@ -29,7 +28,6 @@ class Connect
 			host = host, user = user,
 			pass = pass, base = base
 		) with ConnectionCache
-			with QueryLogger
 			with Nullable {
 
 		override def queryLimit = Some(1000 * 1000)

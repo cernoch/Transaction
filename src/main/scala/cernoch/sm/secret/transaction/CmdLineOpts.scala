@@ -110,4 +110,15 @@ class CmdLineOpts(args: Array[String])
 		val tag = implicitly[TypeTag[List[List[String]]]]
 		val argType = ArgType.LIST
 	})
+
+	val queryTimeOut = opt[Int]("query-timeout", noshort=true,
+		descr = "Timeout for evaluating a single query in seconds." +
+			" Queries exceeding the timeout will be specialized.",
+		default = Some(300), validate = _ > 0 )
+
+	val queryRowLimit = opt[Int]("query-row-limit", noshort=true,
+		descr = "Maximum number of results per query." +
+			" Queries exceeding this limit will be specialized." +
+			" This value should >> number of instances.",
+		default = Some(1000 * 1000), validate = _ > 0 )
 }

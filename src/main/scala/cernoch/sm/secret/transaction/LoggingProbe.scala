@@ -34,7 +34,7 @@ object LoggingProbe {
 		val names  = Labeler.alphabet[Var]
 		val clause = state.horn.toString(short=true,  names=names)
 		val aggVar = result.war.toString(short=false, names=names)
-		val score  = (math.round(result.acc*100).toDouble/100).toString
-		s"+$score% using ${result.agg}($aggVar) on $clause."
+		val score  = Result.Format.format(result.acc)
+		s"+${score}% using ${result.agg}($aggVar) on $clause."
 	}
 }

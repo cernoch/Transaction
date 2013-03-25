@@ -1,8 +1,10 @@
 package cernoch.sm.secret.transaction
 
+import Tools._
+
 import cernoch.scalistics.aggregator._
 import cernoch.scalogic._
-import cernoch.scalogic.sql.SqlExecutor
+import sql.{JoinModel, SqlExecutor}
 import cernoch.scalogic.tools.Labeler
 import cernoch.sm.logic.Generator._
 import cernoch.sm.space.{ThrowAway, Reconsider, BeamSearch}
@@ -26,6 +28,23 @@ abstract class ClauseBeam
 	 baseAcc: Double)
   extends BeamSearch[State,Result]
 	with Logging {
+
+	/**
+	 * Timeout for evaluating a single query in seconds.
+	 *
+	 * Queries exceeding the timeout will be specialized.
+	 */
+	var queryRowLimit: Long = 1000 * 1000
+
+	/**
+	 * Maximum number of results per query.
+	 *
+	 * Queries exceeding this limit will be specialized.
+	 *
+	 * This value should >> number of instances in
+	 * [[cernoch.sm.secret.transaction.ClauseBeam.dataset]].
+	 */
+	var queryTimeOut = 300
 
 	def descendants(state: State)
 	= onlySpecialize(state) ++
@@ -77,10 +96,8 @@ abstract class ClauseBeam
 					val newBody = orig.horn.bodyAtoms +
 						newMode.atom + causality
 
-					Some(
-						new State(orig.initSchema, numericVars, newBody)
-						with AddedAtom { val added = newMode.atom }
-					)
+					Some(new State(orig.initSchema, numericVars, newBody)
+					    with AddedAtom { val added = newMode.atom } )
 				}
 			}
 		})
@@ -122,43 +139,61 @@ abstract class ClauseBeam
 
 		// Prepare for OutOfMemoryException
 		val tooNew = new Reconsider(
-			"Query produces too much results." +
+			"Query produces too many results." +
 				" Must be specialized")
 
 		try {
-			execQuery(state).par.foreach {
+			val joinModel = storage.prepare(state.horn.bodyAtoms)
+
+			execQuery(
+				joinModel,
+				state.valuedVars.toSet,
+				state.head.exId
+			).foreach {
+
 				case ((war,agg), exampleMap) => {
 
-					val newAttr = Var(DoubleDom(war.dom.name))
+					val newAttr  = Var(DoubleDom(war.dom.name))
 					val enriched = vychozi.enrich(newAttr, exampleMap.toMap)
 					val accuracy = baseAcc - WekaBridge.classify(enriched)
 
 					state.synchronized {
-						if (best == null || best.acc < accuracy)
-							best = new Result(war, agg, enriched, accuracy)
+						if (best == null ||
+							  best.acc < accuracy)
+							best = new Result(war, agg,
+								enriched, accuracy, joinModel)
 					}
 				}
 			}
+
+			if (best == null) throw new Reconsider(
+				"No aggregable variable in the query.")
+
 		} catch {
 			case _:OutOfMemoryError => {
 				System.gc()
 				info("Clause not evaluated becaues of memory limits.")
 				throw tooNew
 			}
+
 			case x:SQLException => {
 				warn(s"Generic SQL exception (${x.getErrorCode}) met." +
 					s" Hoping the clause was too specific.", x)
 				throw tooNew
 			}
+
+			case t:ThrowAway => {
+				info(s"Clause'll be trashed: ${t.getMessage}")
+				throw t
+			}
+			case t:Reconsider => {
+				info(s"Clause'll be specialized: ${t.getMessage}")
+				throw t
+			}
 		}
 
-		if (best == null) throw new Reconsider(
-			"No aggregable variable in the query.")
-
-		val bestAcc = (math.round(best.acc * 100).toDouble / 100)
-		info(s"Best accuracy +$bestAcc% achieved using ${best.agg} " +
-		     s"on variable ${best.war.toString(short=false,names=n)}.")
-
+		info(s"Best accuracy +${best.acc2print} achieved using ${best.agg}" +
+		     s" on variable ${best.war.toString(short=false,names=n)}.")
 		best
 	}
 
@@ -172,98 +207,182 @@ abstract class ClauseBeam
 	/**
 	 * Execute the query.
 	 */
-	def execQuery(state: State)
-	: Map[(Var,String),Iterable[(Val,Double)]]
+	def execQuery
+	(query: JoinModel,
+	 valuedVars: Set[Var],
+	 exId: Var)
+	: Map[(Var,String), Iterable[(Val,Double)]]
 	= {
+		Terminator(() => {
 
-		// Start printing the status every 10s
-		var results: Long = 0
-		val started = System.currentTimeMillis()
-		val writer  = new Thread("StatusWriter") {
-			override def run() {
-				try {
-					while (true) {
-						Thread.sleep(10000)
-						val elapsed = (System.currentTimeMillis() - started) / 1000
-						val usedMem = Tools.usedMem
-						debug(s"$results results done in ${elapsed}s using ${usedMem}MB mem")
-					}
-				} catch {
-					case _:OutOfMemoryError =>
-					case _:InterruptedException =>
-				}
+			// First chech if the query is not too big.
+			try {
+				if (query.count > queryRowLimit)
+					throw new Reconsider(
+						"Query would produce too many" +
+							" reslts. Please specialize.") }
+			catch {
+				case _: InterruptedException => throw new ThrowAway(
+					"Can't evaluate number of rows. That's really, really bad.")
 			}
-		}
 
-		// COUNT is computed separately
-		val cntExAgg = new mutable.HashMap[Val,Long]()
+			// Start printing the status every 10s
+			var done: Long = 0
 
-		// Create a triplet of aggregators for each example
-		val varExAgg = state.head.others
-			// This filtering should be done when adding an atom
-			//.filter(war => Schema.semanticDoms.contains(war.dom))
-			.map(war => war ->
-				dataset.map{case (k,_) => k -> new DecAggs()}.toMap
+			// COUNT aggregator is computed separately
+			val cntExAgg = new mutable.HashMap[Val,Long]()
+			// Create a triplet of aggregators for each example
+			val varExAgg = valuedVars.map(
+				war => war -> dataset.map{case (k,_) => k -> new DecAggs()}.toMap
 			).toMap
 
-		try {
-			writer.start()
+			Informator(
+				() => done,
+				query.count,
+				informator => {
 
-			// Execute query and fill the aggregators
-			storage.query(state.horn, resMap => {
+					// Execute query and fill the aggregators
+					query.select(valuedVars + exId, resMap => {
 
-				// Print info on first execution
-				if (results == 0) {
-					val delta = (System.currentTimeMillis().toDouble - started) / 1000
-					info(s"Query evaluated in ${delta}s")
+						if (Thread.interrupted()) throw new Reconsider(
+							"Evaluation thread was interrupted.")
+
+						// Get the example number
+						val exNo = resMap(exId)
+
+						// Increase number of results per examples
+						cntExAgg += exNo -> (cntExAgg.get(exNo).getOrElse(0L) + 1L)
+
+						// For each queried value
+						valuedVars.foreach(war => {
+							val wal = resMap(war)
+							if (wal.value != null) {
+								varExAgg(war).get(exNo).foreach(agg => wal match {
+									case DecVal(v:BigDec,_) => agg += v
+									case DecVal(v,f)        => agg += BigDec(f.toDouble(v))
+
+									case NumVal(v:BigInt,_) => agg += BigDec(v)
+									case NumVal(v,n)        => agg += BigDec(n.toLong(v))
+
+									case _ => trace(s"Ignoring value $wal:${wal.dom} in examle $exNo.")
+								})
+							}
+						})
+						done += 1
+					})
+
+					if (done == 0) throw new ThrowAway(
+						"Query did not produce a single result")
+
+					val out = new mutable.HashMap[(Var,String),mutable.Set[(Val,Double)]]
+						with mutable.MultiMap[(Var,String),(Val,Double)]
+
+					for (
+						(war, ex2agg) <- varExAgg;
+						(exNo, agg)   <- ex2agg;
+						(name, value) <- agg()
+					) out.addBinding((war, name), (exNo, value))
+
+					val usedMem = Tools.usedMem
+					info(s"Total of $done records aggregated" +
+						s" in ${informator.elapsed}s and ${usedMem}MB memory.")
+
+					out.toMap + (
+						(exId,"COUNT") -> cntExAgg.map{case (k,v) => k -> v.toDouble}
+					)
+				}
+			)
+		})
+	}
+
+	/**
+	 * Print the result of the evaluation every 10 seconds.
+	 *
+	 * @param rowsDone Number of already evaluated rows
+	 * @param rowsTotal Number of all rows
+	 */
+	class Informator(rowsDone:  () => Long, rowsTotal: Long) extends Thread {
+
+		/** Time when system started */
+		val started = System.currentTimeMillis()
+
+		/** Number of seconds after the thread started */
+		def elapsed = (System.currentTimeMillis() - started) / 1000
+
+		override def run() {
+			try {
+				while (!isInterrupted) {
+					Thread.sleep(10000)
+					debug(s"${rowsDone()} results done in ${elapsed}s using ${usedMem}MB mem")
+				}
+			} catch {
+				case _: OutOfMemoryError =>
+				case _: InterruptedException =>
+				case _: Throwable => error("Informator terminated due to an unknown reason.")
+			}
+		}
+	}
+
+	/**
+	 * Convenience that creates and executes a thread
+	 */
+	object Informator {
+		def apply[T]
+		(rowsDone: () => Long,
+		 rowsTotal: Long,
+		 callback: Informator => T)
+		= {
+			val thread = new Informator(rowsDone, rowsTotal)
+			try {
+				thread.start()
+				callback(thread)
+
+			} finally  {
+				thread.interrupt()
+			}
+		}
+	}
+
+	/**
+	 * Convenience that creates and executes a thread
+	 */
+	object Terminator {
+
+		def apply[T](worker: () => T)
+		= {
+
+			var retVal: Option[T] = None
+			var thrown: Option[Throwable] = None
+
+			val thread = new Thread() {
+				override def run() {
+					try   {
+						retVal = Option(worker())
+					} catch { case t : Throwable =>
+						thrown = Some(t)
+					}
+				}
+			}
+
+			try {
+				thread.start()
+				thread.join(1000*queryTimeOut)
+
+				thrown match {
+					case Some(throwable) => throw throwable
+					case None =>
 				}
 
-				// The example No. must be an integer! No other way!
-				val exNo = resMap(state.head.exId)
+				retVal match {
+					case Some(retval) => retval
+					case None => throw new Reconsider("Query timed-out.")
+				}
 
-				cntExAgg += exNo -> (cntExAgg.get(exNo).getOrElse(0L) + 1L)
-
-				// For each queried value
-				state.head.others.foreach{war => {
-					val wal = resMap(war)
-					if (wal.value != null) {
-						varExAgg(war).get(exNo).foreach(agg => wal match {
-								case DecVal(v:BigDec,_) => agg += v
-								case DecVal(v,f)        => agg += BigDec(f.toDouble(v))
-
-								case NumVal(v:BigInt,_) => agg += BigDec(v)
-								case NumVal(v,n)        => agg += BigDec(n.toLong(v))
-
-								case _ => trace(s"Ignoring value $wal:${wal.dom} in examle $exNo.")
-							})
-					}
-				}}
-				results += 1
-			})
-
-		} finally {
-			writer.interrupt()
+			} finally  {
+				thread.interrupt()
+			}
 		}
-
-		// All results are collected...
-		val elapsed = (System.currentTimeMillis() - started) / 1000
-
-		if (results == 0) throw new
-				ThrowAway("Query did not produce a single result")
-
-		val out = new mutable.HashMap[(Var,String),mutable.Set[(Val,Double)]]
-		         with mutable.MultiMap[(Var,String),(Val,Double)]
-		for (
-			(war, ex2agg) <- varExAgg;
-			(exNo, agg)   <- ex2agg;
-		  (name, value) <- agg()
-		) out.addBinding((war, name), (exNo, value))
-
-		val usedMem = Tools.usedMem
-		info(s"Total of $results records aggregated" +
-		     s" in ${elapsed}s and ${usedMem}MB memory.")
-
-		out.toMap + ( (state.head.exId,"COUNT") ->
-			cntExAgg.map{case (k,v) => k -> v.toDouble} )
 	}
+
+
 }
