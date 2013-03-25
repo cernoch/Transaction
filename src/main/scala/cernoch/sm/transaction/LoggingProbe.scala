@@ -1,4 +1,4 @@
-package cernoch.sm.secret.transaction
+package cernoch.sm.transaction
 
 import cernoch.sm.space.SearchProbe
 import cernoch.scalogic.tools.Labeler

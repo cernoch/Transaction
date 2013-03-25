@@ -1,4 +1,4 @@
-package cernoch.sm.secret.transaction
+package cernoch.sm.transaction
 
 import cernoch.scalogic.sql._
 import grizzled.slf4j.Logging

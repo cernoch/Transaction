@@ -1,4 +1,4 @@
-package cernoch.sm.secret.transaction
+package cernoch.sm.transaction
 
 class ParamException(msg: String, cause: Throwable)
 	extends RuntimeException(msg, cause) {

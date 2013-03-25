@@ -1,4 +1,4 @@
-package cernoch.sm.secret.transaction
+package cernoch.sm.transaction
 
 import org.rogach.scallop.exceptions.ScallopException
 import org.rogach.scallop.{ArgType, ValueConverter, LazyScallopConf}
