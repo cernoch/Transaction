@@ -35,6 +35,6 @@ object LoggingProbe {
 		val clause = state.horn.toString(short=true,  names=names)
 		val aggVar = result.war.toString(short=false, names=names)
 		val score  = Result.Format.format(result.acc)
-		s"+${score}% using ${result.agg}($aggVar) on $clause."
+		s"+$score% using ${result.agg}($aggVar) on $clause."
 	}
 }

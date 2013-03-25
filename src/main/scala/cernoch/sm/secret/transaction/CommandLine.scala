@@ -20,7 +20,7 @@ object CommandLine extends Logging {
 			val options = CmdLineOpts(args)
 
 			val connector
-			= new Connect(
+			= new DbConnector(
 				host = options.host(),
 				user = options.user(),
 				pass = options.pass(),
@@ -115,15 +115,21 @@ object CommandLine extends Logging {
 				def sourceState = starter
 				probe = new LoggingProbe()
 
-				beamWidth = 3
-				maxConsNonImp = 1
-				queryTimeOut = options.queryTimeOut()
+				beamWidth     = options.beamWidth()
+				maxConsNonImp = options.beamConsNonImp()
+				queryTimeOut  = options.queryTimeOut()
 				queryRowLimit = options.queryRowLimit()
 			}
 
 			val (state,result) = beamSearch.call().head
 			info(s"Search finished. Suggesting to use the following query: "
 				+ LoggingProbe.stateScore(state,result) )
+
+			println(s"SELECT" +
+				s" ${result.joinModel.varName(state.head.exId).getOrElse("?")}," +
+				s" ${result.agg}(${result.joinModel.varName(result.war).getOrElse("?")})" +
+				s" ${result.joinModel.queryBody}" +
+				s" GROUP BY ${result.joinModel.varName(state.head.exId).getOrElse("?")}")
 
 		} catch {
 			case e: ParamException => {

@@ -121,4 +121,15 @@ class CmdLineOpts(args: Array[String])
 			" Queries exceeding this limit will be specialized." +
 			" This value should >> number of instances.",
 		default = Some(1000 * 1000), validate = _ > 0 )
+
+	val beamConsNonImp = opt[Int]("beam-terminate", noshort=true,
+		descr = "Maximum number beam-search iterations without" +
+			" improvement in the score before the search is terminated.",
+		default = Some(1), validate = _ > 0 )
+
+	val beamWidth = opt[Int]("beam-width", noshort=true,
+		descr = "Beam-search keeps only a number of best candidates," +
+			" which are modified during the next iteration.",
+		default = Some(3), validate = _ > 0 )
+
 }

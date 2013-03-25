@@ -8,7 +8,7 @@ import java.sql.Connection
 /**
  * @author Radomír Černoch (radomir.cernoch at gmail.com)
  */
-class Connect
+class DbConnector
 	(host: String = "localhost",
 	 user: String, pass: String,
 	 base: String) extends Logging {
@@ -18,9 +18,13 @@ class Connect
 			host = host, user = user,
 			pass = pass, base = base
 		) with ConnectionCache
+			with QueryLogger
 		  with Nullable {
 
 		override def queryLimit = Some(1000 * 1000)
+		override def handle(s: String) {
+			debug(s"Executing SQL query: $s")
+		}
 	}
 
 	def toPostgres
@@ -28,9 +32,13 @@ class Connect
 			host = host, user = user,
 			pass = pass, base = base
 		) with ConnectionCache
+			with QueryLogger
 			with Nullable {
 
 		override def queryLimit = Some(1000 * 1000)
+		override def handle(s: String) {
+			debug(s"Executing SQL query: $s")
+		}
 	}
 
 

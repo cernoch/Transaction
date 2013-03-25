@@ -55,7 +55,7 @@ object Domains extends Logging {
 
 		val stampDom = byName(stamp)
 		if (stampDom.isInstanceOf[Numeric[_]]) warn("Domain of" +
-			" 'stamp' ($stamp) column does not have a numeric type.")
+			s" 'stamp' ($stamp) column does not have a numeric type.")
 
 		new Domains(identDom, klassDom, stampDom,
 			(allDomains - identDom- klassDom- stampDom).toList )
